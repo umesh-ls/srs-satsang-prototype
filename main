@@ -1,0 +1,10 @@
+cd /path/to/your/RSSB/folder
+
+git init srs-satsang-prototype
+cd srs-satsang-prototype
+cp ../SRS-Satsang-DataEntry-Redesign.html index.html
+git add index.html
+git commit -m "Add SRS Satsang Data Entry prototype"
+git remote add origin https://github.com/umesh-ls/srs-satsang-prototype.git
+git branch -M main
+git push -u origin main
