@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proposed Land — Major Centre Location Analysis</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Plus Jakarta Sans', -apple-system, sans-serif; background: #f5f6f8; }
+
+  .header {
+    background: #fff; border-bottom: 1px solid #e5e7eb; padding: 14px 28px;
+    display: flex; justify-content: space-between; align-items: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .header-title { color: #a8213a; font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+  .header-sub { font-size: 12px; color: #6b7280; margin-top: 2px; }
+  .header-right { text-align: right; font-size: 12px; color: #6b7280; }
+
+  .container { display: flex; height: calc(100vh - 56px); }
+
+  #map { flex: 1; z-index: 1; }
+
+  .sidebar {
+    width: 360px; background: #fff; border-left: 1px solid #e5e7eb;
+    overflow-y: auto; padding: 20px; z-index: 2;
+  }
+
+  .section-title {
+    font-size: 13px; font-weight: 700; color: #111827; text-transform: uppercase;
+    letter-spacing: 0.6px; border-bottom: 2px solid #a8213a; padding-bottom: 6px;
+    margin-bottom: 12px; margin-top: 20px;
+  }
+  .section-title:first-child { margin-top: 0; }
+
+  .info-card {
+    background: #fdf2f4; border: 1px solid #f9d0d7; border-radius: 10px;
+    padding: 14px; margin-bottom: 12px;
+  }
+  .info-card .label { font-size: 10px; color: #a8213a; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .info-card .value { font-size: 14px; font-weight: 700; color: #111827; margin-top: 2px; }
+  .info-card .sub { font-size: 11px; color: #6b7280; margin-top: 2px; }
+
+  .mc-list { list-style: none; }
+  .mc-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid #f3f4f6; font-size: 13px;
+  }
+  .mc-item:last-child { border-bottom: none; }
+  .mc-name { font-weight: 600; color: #111827; }
+  .mc-dist { font-weight: 700; color: #a8213a; font-size: 14px; }
+  .mc-dir { font-size: 11px; color: #6b7280; }
+
+  .heatmap-legend {
+    display: flex; align-items: center; gap: 6px; margin-top: 8px; margin-bottom: 6px;
+  }
+  .legend-gradient {
+    height: 14px; flex: 1; border-radius: 7px;
+    background: linear-gradient(to right, #ffffb2, #feb24c, #f03b20, #bd0026);
+    border: 1px solid #e5e7eb;
+  }
+  .legend-label { font-size: 10px; color: #6b7280; font-weight: 600; white-space: nowrap; }
+
+  .ahq-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  .ahq-table th {
+    text-align: left; padding: 8px 10px; font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280;
+    border-bottom: 2px solid #e5e7eb; background: #f9fafb;
+  }
+  .ahq-table td {
+    padding: 7px 10px; font-size: 12px; border-bottom: 1px solid #f3f4f6;
+  }
+  .ahq-table tr:hover { background: #fdf2f4; }
+  .sangat-bar-cell { position: relative; }
+  .sangat-bar {
+    height: 6px; border-radius: 3px; background: #a8213a; opacity: 0.7;
+    position: absolute; bottom: 4px; left: 10px;
+  }
+  .sangat-val { font-weight: 700; color: #111827; }
+
+  .toggle-row {
+    display: flex; gap: 6px; margin-bottom: 12px;
+  }
+  .toggle-btn {
+    flex: 1; padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
+    border: 1.5px solid #e5e7eb; background: #fff; color: #6b7280;
+    cursor: pointer; font-family: inherit; text-align: center;
+    transition: all 0.15s ease;
+  }
+  .toggle-btn.active {
+    background: #a8213a; color: #fff; border-color: #a8213a;
+  }
+
+  .note-box {
+    background: #fffbf0; border: 1px solid #fbbf24; border-radius: 8px;
+    padding: 10px 14px; font-size: 11px; color: #92400e; margin-top: 12px;
+    line-height: 1.5;
+  }
+
+  /* Custom map markers */
+  .proposed-marker {
+    background: #16a34a; border: 3px solid #fff; border-radius: 50%;
+    width: 22px; height: 22px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(22,163,74,0.5); }
+    50% { box-shadow: 0 0 0 12px rgba(22,163,74,0); }
+  }
+  .mc-marker {
+    background: #2563eb; border: 3px solid #fff; border-radius: 50%;
+    width: 18px; height: 18px; box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  }
+
+  .leaflet-popup-content-wrapper { border-radius: 10px !important; }
+  .leaflet-popup-content { font-family: 'Plus Jakarta Sans', sans-serif !important; font-size: 13px; }
+  .popup-title { font-weight: 700; color: #a8213a; font-size: 14px; margin-bottom: 4px; }
+  .popup-line { font-size: 12px; color: #374151; margin: 2px 0; }
+
+  /* Distance label on map */
+  .distance-label {
+    background: rgba(168,33,58,0.9); color: #fff; padding: 3px 10px;
+    border-radius: 12px; font-size: 11px; font-weight: 700;
+    font-family: 'Plus Jakarta Sans', sans-serif; white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25); border: 1.5px solid rgba(255,255,255,0.5);
+  }
+
+  .print-title { display: none; }
+
+  @media print {
+    .sidebar { display: none; }
+    .header { display: none; }
+    #map { height: 100vh; }
+    .print-title {
+      display: block; position: absolute; top: 10px; left: 50%;
+      transform: translateX(-50%); z-index: 9999;
+      background: rgba(255,255,255,0.95); padding: 10px 24px;
+      border-radius: 10px; font-size: 16px; font-weight: 800;
+      color: #a8213a; box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-title">Proposed Land — Major Centre Location Analysis</div>
+    <div class="header-sub">Madhya Pradesh &bull; Chhatarpur District (near Khajuraho)</div>
+  </div>
+  <div class="header-right">
+    <div style="font-weight:600; color:#111827">RSSB Zone-III</div>
+    <div>Prepared by Zonal IT Team</div>
+  </div>
+</div>
+
+<div class="container">
+  <div id="map">
+    <div class="print-title">Proposed Land — Major Centre Location Analysis</div>
+  </div>
+  <div class="sidebar">
+    <div class="section-title" style="margin-top:0">Proposed Location</div>
+    <div class="info-card">
+      <div class="label">Proposed Land</div>
+      <div class="value">Nr. Khajuraho, Chhatarpur (MP)</div>
+      <div class="sub">24.6150°N, 80.1301°E</div>
+      <div class="sub" style="margin-top:6px">Khajuraho Railway Station: ~50 km</div>
+      <div class="sub">Khajuraho Airport: ~53 km</div>
+      <div class="sub">Satna Railway Station: ~82 km</div>
+    </div>
+
+    <div class="section-title">Distance to Nearby Major Centres</div>
+    <ul class="mc-list" id="mcList"></ul>
+
+    <div class="section-title">Sangat Heatmap — 5 States</div>
+    <div class="toggle-row">
+      <button class="toggle-btn active" id="btnHeatmap" onclick="toggleHeatmap()">Heatmap</button>
+      <button class="toggle-btn" id="btnCircles" onclick="toggleCircles()">Circles</button>
+      <button class="toggle-btn" id="btnNone" onclick="toggleNone()">Off</button>
+    </div>
+    <div class="heatmap-legend">
+      <span class="legend-label">Low</span>
+      <div class="legend-gradient"></div>
+      <span class="legend-label">High</span>
+    </div>
+
+    <div style="margin-bottom:8px">
+      <div class="toggle-row" style="flex-wrap:wrap">
+        <button class="toggle-btn active" id="btnAll" onclick="filterState('all')">All</button>
+        <button class="toggle-btn" id="btnMP" onclick="filterState('MP')">MP</button>
+        <button class="toggle-btn" id="btnUP" onclick="filterState('UP')">UP</button>
+        <button class="toggle-btn" id="btnMH" onclick="filterState('MH')">MH</button>
+        <button class="toggle-btn" id="btnCG" onclick="filterState('CG')">CG</button>
+        <button class="toggle-btn" id="btnJH" onclick="filterState('JH')">JH</button>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#6b7280;cursor:pointer">
+        <input type="checkbox" id="nearbyOnly" onchange="rebuildTable()" style="accent-color:#a8213a" />
+        Show only nearby AHQs (&lt;350 km)
+      </label>
+    </div>
+    <table class="ahq-table">
+      <thead><tr><th>#</th><th>Area (AHQ)</th><th>St.</th><th>Avg Sangat</th><th style="width:22%"></th></tr></thead>
+      <tbody id="ahqBody"></tbody>
+    </table>
+
+    <div class="note-box">
+      <strong>Note:</strong> Average Sangat is the sum of sangat count across all centres in each Area. Heatmap covers AHQs from MP, UP &amp; Maharashtra. Toggle "Nearby only" to see AHQs within 350 km of the proposed site.
+    </div>
+    <div style="margin-top:10px;padding:10px 14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;font-size:11px;color:#0369a1;line-height:1.5">
+      <strong>State Legend:</strong>
+      <span style="color:#16a34a;font-weight:700">&#9632; MP</span> &bull;
+      <span style="color:#2563eb;font-weight:700">&#9632; UP</span> &bull;
+      <span style="color:#9333ea;font-weight:700">&#9632; MH</span> &bull;
+      <span style="color:#ea580c;font-weight:700">&#9632; CG</span> &bull;
+      <span style="color:#0891b2;font-weight:700">&#9632; JH</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── DATA ────────────────────────────────────────────────────────
+const PROPOSED = { lat: 24.615035, lng: 80.130139, name: "Proposed Land", desc: "Nr. Khajuraho, Chhatarpur (MP)" };
+
+const MCS = [
+  { name: "Lucknow-MC", lat: 26.69575, lng: 80.97392, color: "#2563eb" },
+  { name: "Biaora-MC", lat: 23.835, lng: 76.84857, color: "#2563eb" },
+  { name: "Nagpur-MC", lat: 21.20559, lng: 78.95449, color: "#2563eb" },
+  { name: "Raipur-MC", lat: 21.21653, lng: 81.72974, color: "#2563eb" },
+];
+
+const AHQ_DATA = [
+  // ─── MADHYA PRADESH ───
+  { name: "BIAORA (RAJGARH)", sangat: 20935, lat: 23.92, lng: 76.91, state: "MP" },
+  { name: "INDORE", sangat: 12728, lat: 22.72, lng: 75.86, state: "MP" },
+  { name: "DEWAS", sangat: 10019, lat: 22.96, lng: 76.05, state: "MP" },
+  { name: "UJJAIN-I", sangat: 8716, lat: 23.18, lng: 75.77, state: "MP" },
+  { name: "MANDSAUR", sangat: 7926, lat: 24.07, lng: 75.07, state: "MP" },
+  { name: "BURHANPUR", sangat: 5990, lat: 21.31, lng: 76.23, state: "MP" },
+  { name: "PITHAMPUR", sangat: 5991, lat: 22.62, lng: 75.69, state: "MP" },
+  { name: "BALAGHAT", sangat: 5985, lat: 21.81, lng: 80.19, state: "MP" },
+  { name: "KATNI", sangat: 5717, lat: 23.83, lng: 80.40, state: "MP" },
+  { name: "BINA", sangat: 5497, lat: 24.18, lng: 78.13, state: "MP" },
+  { name: "BHOPAL", sangat: 5442, lat: 23.26, lng: 77.41, state: "MP" },
+  { name: "JABALPUR", sangat: 5334, lat: 23.18, lng: 79.95, state: "MP" },
+  { name: "SEHORE", sangat: 4806, lat: 23.20, lng: 77.09, state: "MP" },
+  { name: "SANAWAD", sangat: 4546, lat: 22.17, lng: 76.07, state: "MP" },
+  { name: "RATLAM", sangat: 4352, lat: 23.33, lng: 75.04, state: "MP" },
+  { name: "ITARSI", sangat: 4237, lat: 22.61, lng: 77.77, state: "MP" },
+  { name: "UJJAIN-II", sangat: 3702, lat: 23.21, lng: 75.82, state: "MP" },
+  { name: "GWALIOR", sangat: 3426, lat: 26.22, lng: 78.18, state: "MP" },
+  { name: "AGAR MALWA", sangat: 3287, lat: 23.71, lng: 76.02, state: "MP" },
+  { name: "SHAJAPUR (SHUJALPUR)", sangat: 3215, lat: 23.38, lng: 76.71, state: "MP" },
+  { name: "CHHINDWARA", sangat: 1779, lat: 22.06, lng: 78.94, state: "MP" },
+  // ─── UTTAR PRADESH (nearby AHQs within ~350 km) ───
+  { name: "SAHARANPUR", sangat: 12966, lat: 29.97, lng: 77.55, state: "UP", far: true },
+  { name: "GORAKHPUR", sangat: 12595, lat: 26.76, lng: 83.37, state: "UP", far: true },
+  { name: "GHAZIABAD", sangat: 7808, lat: 28.67, lng: 77.42, state: "UP", far: true },
+  { name: "MORADABAD", sangat: 7038, lat: 28.84, lng: 78.77, state: "UP", far: true },
+  { name: "MUZAFFARNAGAR", sangat: 6426, lat: 29.47, lng: 77.70, state: "UP", far: true },
+  { name: "KANPUR", sangat: 5974, lat: 26.45, lng: 80.35, state: "UP" },
+  { name: "LUCKNOW", sangat: 5766, lat: 26.85, lng: 80.95, state: "UP" },
+  { name: "BAREILLY", sangat: 5627, lat: 28.37, lng: 79.42, state: "UP", far: true },
+  { name: "SAMBHAL", sangat: 5399, lat: 28.59, lng: 78.57, state: "UP", far: true },
+  { name: "ALIGARH", sangat: 5333, lat: 27.88, lng: 78.08, state: "UP", far: true },
+  { name: "AGRA", sangat: 4964, lat: 27.18, lng: 78.02, state: "UP" },
+  { name: "AYODHYA", sangat: 4766, lat: 26.80, lng: 82.20, state: "UP" },
+  { name: "BULANDSHAHAR", sangat: 4492, lat: 28.41, lng: 77.85, state: "UP", far: true },
+  { name: "BUDAUN", sangat: 4185, lat: 28.04, lng: 79.12, state: "UP", far: true },
+  { name: "HATHRAS", sangat: 4108, lat: 27.60, lng: 78.05, state: "UP", far: true },
+  { name: "FIROZABAD", sangat: 4095, lat: 27.15, lng: 78.39, state: "UP", far: true },
+  { name: "MAINPURI", sangat: 3868, lat: 27.23, lng: 79.02, state: "UP" },
+  { name: "MEERUT", sangat: 3886, lat: 28.98, lng: 77.71, state: "UP", far: true },
+  { name: "SHAHJAHANPUR", sangat: 3807, lat: 27.88, lng: 79.91, state: "UP", far: true },
+  { name: "JHANSI", sangat: 3748, lat: 25.45, lng: 78.57, state: "UP" },
+  { name: "VARANASI", sangat: 3539, lat: 25.32, lng: 83.00, state: "UP" },
+  { name: "JAUNPUR", sangat: 3529, lat: 25.75, lng: 82.68, state: "UP" },
+  { name: "PALIA KALAN", sangat: 3232, lat: 28.43, lng: 80.58, state: "UP", far: true },
+  { name: "FARRUKHABAD", sangat: 3009, lat: 27.39, lng: 79.58, state: "UP", far: true },
+  { name: "ALLAHABAD", sangat: 2618, lat: 25.43, lng: 81.85, state: "UP" },
+  { name: "RAE BARELI-I", sangat: 2281, lat: 26.23, lng: 81.24, state: "UP" },
+  { name: "RAE BARELI-II", sangat: 2048, lat: 26.20, lng: 81.30, state: "UP" },
+  { name: "ETAWAH", sangat: 2020, lat: 26.78, lng: 79.02, state: "UP" },
+  { name: "AMETHI", sangat: 1647, lat: 26.15, lng: 81.80, state: "UP" },
+  { name: "SULTANPUR", sangat: 1214, lat: 26.26, lng: 82.07, state: "UP" },
+  // ─── MAHARASHTRA (nearby AHQs) ───
+  { name: "MUMBAI", sangat: 13087, lat: 19.08, lng: 72.88, state: "MH", far: true },
+  { name: "NAGPUR", sangat: 7814, lat: 21.15, lng: 79.09, state: "MH" },
+  { name: "AMRAVATI", sangat: 5181, lat: 20.93, lng: 77.75, state: "MH" },
+  { name: "WASHIM", sangat: 5312, lat: 20.10, lng: 77.15, state: "MH", far: true },
+  { name: "AKOLA", sangat: 4987, lat: 20.71, lng: 77.00, state: "MH", far: true },
+  { name: "BULDANA (ASALGAON)", sangat: 4240, lat: 20.53, lng: 76.18, state: "MH", far: true },
+  { name: "PUNE", sangat: 4239, lat: 18.52, lng: 73.86, state: "MH", far: true },
+  { name: "CHH. SAMBHAJINAGAR", sangat: 3516, lat: 19.88, lng: 75.34, state: "MH", far: true },
+  { name: "NASIK", sangat: 3047, lat: 20.00, lng: 73.79, state: "MH", far: true },
+  { name: "SANGLI", sangat: 2314, lat: 16.85, lng: 74.56, state: "MH", far: true },
+  { name: "SOLAPUR", sangat: 1520, lat: 17.66, lng: 75.91, state: "MH", far: true },
+  // ─── CHHATTISGARH ───
+  { name: "RAIPUR", sangat: 5803, lat: 21.25, lng: 81.63, state: "CG" },
+  { name: "DURG", sangat: 5549, lat: 21.19, lng: 81.28, state: "CG" },
+  { name: "DHAMTARI", sangat: 3838, lat: 20.71, lng: 81.55, state: "CG" },
+  { name: "RAJNANDGAON", sangat: 3709, lat: 21.10, lng: 81.03, state: "CG" },
+  { name: "BEMETARA", sangat: 3693, lat: 21.72, lng: 81.53, state: "CG" },
+  { name: "BILASPUR (CHHATTISGARH)", sangat: 3581, lat: 22.08, lng: 82.15, state: "CG" },
+  { name: "KANKER", sangat: 2704, lat: 20.27, lng: 81.49, state: "CG" },
+  // ─── JHARKHAND ───
+  { name: "RANCHI", sangat: 2558, lat: 23.34, lng: 85.31, state: "JH" },
+  { name: "JAMSHEDPUR", sangat: 1804, lat: 22.80, lng: 86.20, state: "JH", far: true },
+  { name: "DHANBAD", sangat: 975, lat: 23.80, lng: 86.43, state: "JH", far: true },
+];
+
+const MAX_SANGAT = Math.max(...AHQ_DATA.map(a => a.sangat));
+
+// ─── HAVERSINE ───────────────────────────────────────────────────
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function bearing(lat1, lng1, lat2, lng2) {
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const y = Math.sin(dLng) * Math.cos(lat2 * Math.PI / 180);
+  const x = Math.cos(lat1*Math.PI/180)*Math.sin(lat2*Math.PI/180) - Math.sin(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.cos(dLng);
+  let brng = Math.atan2(y, x) * 180 / Math.PI;
+  if (brng < 0) brng += 360;
+  const dirs = ["N","NE","E","SE","S","SW","W","NW"];
+  return dirs[Math.round(brng / 45) % 8];
+}
+
+// ─── INIT MAP ────────────────────────────────────────────────────
+const map = L.map('map', { zoomControl: true }).setView([23.5, 79.0], 7);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors',
+  maxZoom: 18,
+}).addTo(map);
+
+// ─── PROPOSED LAND MARKER ────────────────────────────────────────
+const proposedIcon = L.divIcon({
+  className: '',
+  html: '<div class="proposed-marker"></div>',
+  iconSize: [22, 22],
+  iconAnchor: [11, 11],
+});
+
+L.marker([PROPOSED.lat, PROPOSED.lng], { icon: proposedIcon, zIndexOffset: 1000 })
+  .addTo(map)
+  .bindPopup(`
+    <div class="popup-title">&#9679; Proposed Land</div>
+    <div class="popup-line"><strong>${PROPOSED.desc}</strong></div>
+    <div class="popup-line">${PROPOSED.lat.toFixed(4)}°N, ${PROPOSED.lng.toFixed(4)}°E</div>
+    <div class="popup-line" style="margin-top:6px;color:#6b7280">Khajuraho Rly Stn: ~50 km</div>
+    <div class="popup-line" style="color:#6b7280">Khajuraho Airport: ~53 km</div>
+    <div class="popup-line" style="color:#6b7280">Satna Rly Stn: ~82 km</div>
+  `);
+
+// ─── MC MARKERS + DISTANCE LINES ────────────────────────────────
+const mcListEl = document.getElementById('mcList');
+const distanceLines = [];
+
+MCS.forEach(mc => {
+  const dist = haversine(PROPOSED.lat, PROPOSED.lng, mc.lat, mc.lng);
+  const dir = bearing(PROPOSED.lat, PROPOSED.lng, mc.lat, mc.lng);
+  const distKm = Math.round(dist);
+
+  // Marker
+  const mcIcon = L.divIcon({
+    className: '',
+    html: '<div class="mc-marker"></div>',
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+  });
+
+  L.marker([mc.lat, mc.lng], { icon: mcIcon })
+    .addTo(map)
+    .bindPopup(`
+      <div class="popup-title" style="color:#2563eb">&#9675; ${mc.name}</div>
+      <div class="popup-line">Major Centre</div>
+      <div class="popup-line"><strong>${distKm} km</strong> from Proposed Land (${dir})</div>
+    `);
+
+  // Distance line (dashed red)
+  const line = L.polyline(
+    [[PROPOSED.lat, PROPOSED.lng], [mc.lat, mc.lng]],
+    { color: '#dc2626', weight: 2.5, dashArray: '8,6', opacity: 0.8 }
+  ).addTo(map);
+  distanceLines.push(line);
+
+  // Distance label at midpoint
+  const midLat = (PROPOSED.lat + mc.lat) / 2;
+  const midLng = (PROPOSED.lng + mc.lng) / 2;
+  const labelIcon = L.divIcon({
+    className: '',
+    html: `<div class="distance-label">${distKm} km</div>`,
+    iconSize: [70, 24],
+    iconAnchor: [35, 12],
+  });
+  L.marker([midLat, midLng], { icon: labelIcon, interactive: false }).addTo(map);
+
+  // Sidebar list item
+  const li = document.createElement('li');
+  li.className = 'mc-item';
+  li.innerHTML = `
+    <div>
+      <div class="mc-name">${mc.name}</div>
+      <div class="mc-dir">${dir} direction</div>
+    </div>
+    <div class="mc-dist">${distKm} km</div>
+  `;
+  li.style.cursor = 'pointer';
+  li.addEventListener('click', () => {
+    map.flyTo([mc.lat, mc.lng], 10, { duration: 1 });
+  });
+  mcListEl.appendChild(li);
+});
+
+// ─── HEATMAP LAYER ───────────────────────────────────────────────
+// Scale sangat to stronger intensity values — square root scaling for better spread
+const heatData = AHQ_DATA.map(a => {
+  const intensity = Math.sqrt(a.sangat) / Math.sqrt(MAX_SANGAT);
+  // Boost minimum intensity so even small AHQs are visible
+  const boosted = 0.3 + intensity * 0.7;
+  return [a.lat, a.lng, boosted];
+});
+const heatLayer = L.heatLayer(heatData, {
+  radius: 60, blur: 40, maxZoom: 12, max: 1.0,
+  minOpacity: 0.55,
+  gradient: { 0.0: '#ffffb2', 0.25: '#fecc5c', 0.45: '#fd8d3c', 0.65: '#f03b20', 0.85: '#bd0026', 1.0: '#800026' },
+}).addTo(map);
+
+// ─── CIRCLE MARKERS LAYER ────────────────────────────────────────
+const circleLayerGroup = L.layerGroup();
+const stateColorMap = { MP: '#16a34a', UP: '#2563eb', MH: '#9333ea', CG: '#ea580c', JH: '#0891b2' };
+AHQ_DATA.forEach(a => {
+  const radius = 8000 + (a.sangat / MAX_SANGAT) * 35000;
+  const intensity = a.sangat / MAX_SANGAT;
+  let fillColor;
+  if (intensity > 0.7) fillColor = '#bd0026';
+  else if (intensity > 0.5) fillColor = '#f03b20';
+  else if (intensity > 0.3) fillColor = '#fd8d3c';
+  else if (intensity > 0.15) fillColor = '#fecc5c';
+  else fillColor = '#ffffb2';
+
+  const borderColor = stateColorMap[a.state] || '#6b7280';
+
+  L.circle([a.lat, a.lng], {
+    radius: radius, color: borderColor, fillColor: fillColor,
+    fillOpacity: 0.4, weight: 2.5, opacity: 0.85,
+  }).bindPopup(`
+    <div class="popup-title" style="color:${borderColor}">${a.name}</div>
+    <div class="popup-line">State: <strong>${{MP:'Madhya Pradesh',UP:'Uttar Pradesh',MH:'Maharashtra',CG:'Chhattisgarh',JH:'Jharkhand'}[a.state]}</strong></div>
+    <div class="popup-line">Avg Sangat: <strong>${a.sangat.toLocaleString()}</strong></div>
+    <div class="popup-line" style="color:#6b7280">Distance from Proposed: <strong>${a.distFromProposed} km</strong></div>
+  `).addTo(circleLayerGroup);
+
+  // AHQ name label
+  const stColor = stateColorMap[a.state] || '#374151';
+  const lblIcon = L.divIcon({
+    className: '',
+    html: `<div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:10px;font-weight:700;color:${stColor};white-space:nowrap;text-shadow:1px 1px 2px #fff,-1px -1px 2px #fff,1px -1px 2px #fff,-1px 1px 2px #fff">${a.name}<br><span style="color:#a8213a;font-size:11px">${a.sangat.toLocaleString()}</span></div>`,
+    iconSize: [120, 30], iconAnchor: [60, -8],
+  });
+  L.marker([a.lat, a.lng], { icon: lblIcon, interactive: false }).addTo(circleLayerGroup);
+});
+
+// ─── TOGGLE CONTROLS ─────────────────────────────────────────────
+let currentView = 'heatmap';
+
+function setActiveBtn(id) {
+  document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function toggleHeatmap() {
+  map.removeLayer(circleLayerGroup);
+  heatLayer.addTo(map);
+  currentView = 'heatmap';
+  setActiveBtn('btnHeatmap');
+}
+
+function toggleCircles() {
+  map.removeLayer(heatLayer);
+  circleLayerGroup.addTo(map);
+  currentView = 'circles';
+  setActiveBtn('btnCircles');
+}
+
+function toggleNone() {
+  map.removeLayer(heatLayer);
+  map.removeLayer(circleLayerGroup);
+  currentView = 'none';
+  setActiveBtn('btnNone');
+}
+
+// ─── AHQ TABLE ───────────────────────────────────────────────────
+// Add distance from proposed land to each AHQ
+AHQ_DATA.forEach(a => {
+  a.distFromProposed = Math.round(haversine(PROPOSED.lat, PROPOSED.lng, a.lat, a.lng));
+});
+
+let currentStateFilter = 'all';
+
+function filterState(st) {
+  currentStateFilter = st;
+  document.querySelectorAll('#btnAll,#btnMP,#btnUP,#btnMH,#btnCG,#btnJH').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn' + (st === 'all' ? 'All' : st)).classList.add('active');
+  rebuildTable();
+}
+
+function rebuildTable() {
+  const ahqBody = document.getElementById('ahqBody');
+  ahqBody.innerHTML = '';
+  const nearbyOnly = document.getElementById('nearbyOnly').checked;
+  let filtered = [...AHQ_DATA];
+  if (currentStateFilter !== 'all') filtered = filtered.filter(a => a.state === currentStateFilter);
+  if (nearbyOnly) filtered = filtered.filter(a => a.distFromProposed <= 350);
+  filtered.sort((a, b) => b.sangat - a.sangat);
+
+  const stateColors = { MP: '#16a34a', UP: '#2563eb', MH: '#9333ea' };
+  filtered.forEach((a, i) => {
+    const pct = (a.sangat / MAX_SANGAT * 100).toFixed(0);
+    const tr = document.createElement('tr');
+    const stColor = stateColors[a.state] || '#6b7280';
+    tr.innerHTML = `
+      <td style="color:#9ca3af;font-size:11px">${i+1}</td>
+      <td style="font-weight:600;font-size:11px">${a.name}</td>
+      <td><span style="font-size:10px;font-weight:700;color:${stColor};background:${stColor}15;padding:2px 6px;border-radius:4px">${a.state}</span></td>
+      <td class="sangat-val" style="font-size:12px">${a.sangat.toLocaleString()}</td>
+      <td class="sangat-bar-cell"><div class="sangat-bar" style="width:${pct}%"></div></td>
+    `;
+    tr.style.cursor = 'pointer';
+    tr.addEventListener('click', () => {
+      map.flyTo([a.lat, a.lng], 10, { duration: 1 });
+      if (currentView === 'heatmap') { toggleCircles(); }
+    });
+    ahqBody.appendChild(tr);
+  });
+}
+rebuildTable();
+
+// ─── CUSTOM MAP LEGEND ───────────────────────────────────────────
+const legend = L.control({ position: 'bottomleft' });
+legend.onAdd = function() {
+  const div = L.DomUtil.create('div');
+  div.style.cssText = 'background:rgba(255,255,255,0.95);padding:12px 16px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.15);font-family:"Plus Jakarta Sans",sans-serif;font-size:12px;line-height:1.8';
+  div.innerHTML = `
+    <div style="font-weight:700;margin-bottom:4px;font-size:13px">Legend</div>
+    <div><span style="display:inline-block;width:14px;height:14px;background:#16a34a;border:2px solid #fff;border-radius:50%;vertical-align:middle;box-shadow:0 1px 3px rgba(0,0,0,0.2)"></span>&nbsp; Proposed Land</div>
+    <div><span style="display:inline-block;width:12px;height:12px;background:#2563eb;border:2px solid #fff;border-radius:50%;vertical-align:middle;box-shadow:0 1px 3px rgba(0,0,0,0.2)"></span>&nbsp; Major Centre</div>
+    <div><span style="display:inline-block;width:20px;height:0;border-top:2.5px dashed #dc2626;vertical-align:middle"></span>&nbsp; Distance</div>
+    <div style="margin-top:6px;padding-top:6px;border-top:1px solid #e5e7eb">
+      <div style="font-weight:600;font-size:11px;margin-bottom:2px">AHQ States</div>
+      <div><span style="color:#16a34a;font-weight:700">&#9632;</span> Madhya Pradesh</div>
+      <div><span style="color:#2563eb;font-weight:700">&#9632;</span> Uttar Pradesh</div>
+      <div><span style="color:#9333ea;font-weight:700">&#9632;</span> Maharashtra</div>
+      <div><span style="color:#ea580c;font-weight:700">&#9632;</span> Chhattisgarh</div>
+      <div><span style="color:#0891b2;font-weight:700">&#9632;</span> Jharkhand</div>
+    </div>
+  `;
+  return div;
+};
+legend.addTo(map);
+
+// Fit bounds to show everything
+const allPoints = [[PROPOSED.lat, PROPOSED.lng], ...MCS.map(m => [m.lat, m.lng])];
+map.fitBounds(allPoints, { padding: [40, 40] });
+</script>
+</body>
+</html>
