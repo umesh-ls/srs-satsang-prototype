@@ -1,0 +1,1421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SRS Legal Case Management — Prototype v1.0</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f8fafc; }
+  button:focus, select:focus, input:focus { outline: none; }
+</style>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script crossorigin src="https://unpkg.com/@babel/standalone@7.23.9/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useMemo, useCallback } = React;
+
+// ─── MOCK DATA ────────────────────────────────────────────────────
+const ZONES = [
+  { id: 1, name: "Zone-I" },
+  { id: 2, name: "Zone-II" },
+  { id: 3, name: "Zone-III" },
+];
+
+const STATES = [
+  { id: 1, name: "Punjab", zoneId: 2 },
+  { id: 2, name: "Haryana", zoneId: 2 },
+  { id: 3, name: "Rajasthan", zoneId: 2 },
+  { id: 4, name: "Uttar Pradesh", zoneId: 1 },
+  { id: 5, name: "Madhya Pradesh", zoneId: 1 },
+  { id: 6, name: "Maharashtra", zoneId: 3 },
+  { id: 7, name: "Gujarat", zoneId: 3 },
+  { id: 8, name: "Karnataka", zoneId: 3 },
+  { id: 9, name: "Tamil Nadu", zoneId: 3 },
+  { id: 10, name: "Delhi", zoneId: 1 },
+];
+
+const AREAS = [
+  { id: 101, name: "Ludhiana", stateId: 1 },
+  { id: 102, name: "Amritsar", stateId: 1 },
+  { id: 103, name: "Jalandhar", stateId: 1 },
+  { id: 104, name: "Panchkula", stateId: 2 },
+  { id: 105, name: "Hisar", stateId: 2 },
+  { id: 106, name: "Jaipur", stateId: 3 },
+  { id: 107, name: "Lucknow", stateId: 4 },
+  { id: 108, name: "Bhopal", stateId: 5 },
+  { id: 109, name: "Mumbai", stateId: 6 },
+  { id: 110, name: "Ahmedabad", stateId: 7 },
+  { id: 111, name: "Bengaluru", stateId: 8 },
+  { id: 112, name: "Chennai", stateId: 9 },
+  { id: 113, name: "New Delhi", stateId: 10 },
+];
+
+const CENTRES = [
+  { id: 1001, name: "Ludhiana Main", type: "Major Centre", areaId: 101 },
+  { id: 1002, name: "Khanna", type: "Centre", areaId: 101 },
+  { id: 1003, name: "Jagraon", type: "Centre", areaId: 101 },
+  { id: 1004, name: "Amritsar Main", type: "Major Centre", areaId: 102 },
+  { id: 1005, name: "Tarn Taran", type: "Centre", areaId: 102 },
+  { id: 1006, name: "Jalandhar Main", type: "Major Centre", areaId: 103 },
+  { id: 1007, name: "Panchkula Main", type: "Centre", areaId: 104 },
+  { id: 1008, name: "Hisar Main", type: "Centre", areaId: 105 },
+  { id: 1009, name: "Jaipur Main", type: "Major Centre", areaId: 106 },
+  { id: 1010, name: "Lucknow Main", type: "Major Centre", areaId: 107 },
+  { id: 1011, name: "Bhopal Main", type: "Centre", areaId: 108 },
+  { id: 1012, name: "Mumbai Main", type: "Major Centre", areaId: 109 },
+  { id: 1013, name: "Ahmedabad Main", type: "Major Centre", areaId: 110 },
+  { id: 1014, name: "Bengaluru Main", type: "Major Centre", areaId: 111 },
+  { id: 1015, name: "Chennai Main", type: "Major Centre", areaId: 112 },
+  { id: 1016, name: "New Delhi Main", type: "Major Centre", areaId: 113 },
+];
+
+const CASE_TYPES = ["Civil", "Criminal", "Revenue", "Writ Petition", "Consumer", "Other"];
+const DIRECTIONS = ["Filed Against Us", "Filed By Us"];
+const PRIORITIES = ["Critical", "High", "Normal"];
+const STATUSES = ["New", "Active", "Adjourned", "Reserved for Order", "Stayed / Injunction", "Disposed", "Escalated"];
+const ADJOURNMENT_REASONS = [
+  { code: "OPP_ABSENT", label: "Opposing Party Absent", cause: "Other party" },
+  { code: "OUR_REQUEST", label: "Our Side Requested Time", cause: "Our side" },
+  { code: "EVIDENCE_PENDING", label: "Evidence / Documents Pending", cause: "Either" },
+  { code: "JUDGE_LEAVE", label: "Judge on Leave / Transferred", cause: "Court" },
+  { code: "COURT_CONGESTION", label: "Court Congestion / Board Heavy", cause: "Court" },
+  { code: "MEDIATION", label: "Mediation / Settlement Talk", cause: "Both" },
+  { code: "PROCEDURAL", label: "Procedural / Compliance", cause: "Process" },
+  { code: "ADVOCATE_NA", label: "Advocate Not Available", cause: "Advocate" },
+  { code: "OTHER", label: "Other", cause: "Varies" },
+];
+
+const COURTS = [
+  "Civil Court, Ludhiana", "District Court, Ludhiana", "High Court, Chandigarh",
+  "Sessions Court, Amritsar", "Revenue Court, Jalandhar", "Tehsildar, Khanna",
+  "District Court, Jaipur", "High Court, Rajasthan", "Civil Court, Lucknow",
+  "High Court, Allahabad", "Bombay High Court", "District Court, Ahmedabad",
+  "High Court, Karnataka", "Madras High Court", "Supreme Court of India",
+  "SDM Court, Panchkula", "Consumer Forum, Delhi", "District Court, Hisar",
+];
+
+const ADVOCATES = [
+  "Sh. Rajinder Mohan", "Sh. Baldev Singh", "Sh. Suresh Khanna", "Sh. Arun Jaitley",
+  "Sh. Pradeep Sharma", "Sh. Vikram Chauhan", "Sh. Mohan Lal Gupta", "Sh. Harish Rao",
+  "Sh. Deepak Verma", "Ms. Sunita Arora", "Sh. Ramesh Chand", "Sh. Naresh Kumar",
+];
+
+const OPPOSING_PARTIES = [
+  "Sh. Gurbachan Singh", "Smt. Kamla Devi", "Punjab State Govt.", "Sh. Rattan Lal",
+  "M/s Sunrise Builders", "Sh. Mohinder Pal", "Municipal Corporation", "Sh. Surinder Kumar",
+  "Rajasthan Revenue Dept.", "Sh. Ashok Mehta", "Maharashtra PWD", "Sh. Kishan Chand",
+  "Delhi Development Authority", "Sh. Balbir Singh", "Tamil Nadu Land Board",
+];
+
+function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function pick(arr) { return arr[rand(0, arr.length - 1)]; }
+function generateCaseId(zoneId, stateAbbr, areaAbbr, year, num) {
+  return "LC-Z" + zoneId + "-" + stateAbbr + "-" + areaAbbr + "-" + year + "-" + String(num).padStart(4, "0");
+}
+
+const STATE_ABBR = { Punjab: "PB", Haryana: "HR", Rajasthan: "RJ", "Uttar Pradesh": "UP", "Madhya Pradesh": "MP", Maharashtra: "MH", Gujarat: "GJ", Karnataka: "KA", "Tamil Nadu": "TN", Delhi: "DL" };
+const AREA_ABBR = { Ludhiana: "LDH", Amritsar: "ASR", Jalandhar: "JLR", Panchkula: "PKL", Hisar: "HSR", Jaipur: "JPR", Lucknow: "LKO", Bhopal: "BPL", Mumbai: "MUM", Ahmedabad: "AMD", Bengaluru: "BLR", Chennai: "CHN", "New Delhi": "NDL" };
+
+// Generate 45 realistic mock cases spread across all zones
+const MOCK_CASES = (function() {
+  var cases = [];
+  var num = 1;
+  CENTRES.forEach(function(centre) {
+    var area = AREAS.find(function(a) { return a.id === centre.areaId; });
+    var state = STATES.find(function(s) { return s.id === area.stateId; });
+    var zone = ZONES.find(function(z) { return z.id === state.zoneId; });
+    var count = centre.type === "Major Centre" ? rand(3, 5) : rand(1, 3);
+    for (var i = 0; i < count; i++) {
+      var year = pick([2023, 2024, 2025, 2026]);
+      var caseType = pick(CASE_TYPES);
+      var status = pick(STATUSES);
+      var direction = pick(DIRECTIONS);
+      var priority = caseType === "Writ Petition" || COURTS[rand(0, COURTS.length - 1)].includes("High Court") || COURTS[rand(0, COURTS.length - 1)].includes("Supreme") ? pick(["Critical", "High"]) : pick(PRIORITIES);
+      var filedDate = year + "-" + String(rand(1, 12)).padStart(2, "0") + "-" + String(rand(1, 28)).padStart(2, "0");
+      var hearingCount = rand(2, 12);
+      var hearings = [];
+      var hDate = new Date(filedDate);
+      for (var h = 0; h < hearingCount; h++) {
+        hDate = new Date(hDate.getTime() + rand(14, 60) * 86400000);
+        var adjReason = h < hearingCount - 1 ? pick(ADJOURNMENT_REASONS) : null;
+        hearings.push({
+          id: h + 1,
+          date: hDate.toISOString().slice(0, 10),
+          summary: h === 0 ? "First hearing. Notice issued to opposite party." :
+            h === hearingCount - 1 && status === "Disposed" ? "Final arguments heard. Order pronounced." :
+            adjReason ? "Adjourned — " + adjReason.label.toLowerCase() + "." : "Arguments heard. Matter progressed.",
+          adjournmentReason: adjReason,
+          nextDate: null,
+          actionItems: h < hearingCount - 1 ? pick(["File reply by next date", "Submit evidence", "Arrange witness", "File written arguments", "Obtain certified copy of order", ""]) : "",
+        });
+      }
+      for (var h2 = 0; h2 < hearings.length - 1; h2++) {
+        hearings[h2].nextDate = hearings[h2 + 1].date;
+      }
+      if (status !== "Disposed") {
+        var lastH = hearings[hearings.length - 1];
+        var nextD = new Date(lastH.date);
+        nextD.setDate(nextD.getDate() + rand(14, 45));
+        lastH.nextDate = nextD.toISOString().slice(0, 10);
+      }
+      cases.push({
+        id: num,
+        caseId: generateCaseId(zone.id, STATE_ABBR[state.name], AREA_ABBR[area.name], year, num),
+        caseNumber: (caseType === "Civil" ? "CS" : caseType === "Criminal" ? "CR" : caseType === "Revenue" ? "RV" : caseType === "Writ Petition" ? "WP" : caseType === "Consumer" ? "CC" : "MC") + "-" + rand(100, 9999) + "/" + year,
+        caseType: caseType,
+        direction: direction,
+        priority: priority,
+        status: status,
+        court: pick(COURTS),
+        advocate: pick(ADVOCATES),
+        opposingParty: pick(OPPOSING_PARTIES),
+        centreId: centre.id,
+        centreName: centre.name,
+        areaId: area.id,
+        areaName: area.name,
+        stateId: state.id,
+        stateName: state.name,
+        zoneId: zone.id,
+        zoneName: zone.name,
+        filedDate: filedDate,
+        nextHearingDate: status !== "Disposed" ? hearings[hearings.length - 1].nextDate : null,
+        hearings: hearings,
+        documents: rand(2, 8),
+        checklistTotal: rand(6, 10),
+        checklistDone: rand(2, 10),
+        expenses: rand(5000, 200000),
+      });
+      num++;
+    }
+  });
+  return cases;
+})();
+
+// ─── COLORS ──────────────────────────────────────────────────────
+const TYPE_COLORS = { Civil: "#3b82f6", Criminal: "#ef4444", Revenue: "#f59e0b", "Writ Petition": "#8b5cf6", Consumer: "#10b981", Other: "#94a3b8" };
+const STATUS_COLORS = { New: "#3b82f6", Active: "#16a34a", Adjourned: "#f59e0b", "Reserved for Order": "#8b5cf6", "Stayed / Injunction": "#ef4444", Disposed: "#94a3b8", Escalated: "#dc2626" };
+const PRIORITY_COLORS = { Critical: "#ef4444", High: "#f59e0b", Normal: "#16a34a" };
+const CAUSE_COLORS = { "Our side": "#ef4444", "Other party": "#3b82f6", Court: "#94a3b8", Either: "#f59e0b", Both: "#8b5cf6", Process: "#6b7280", Advocate: "#ea580c", Varies: "#6b7280" };
+
+// ─── UTILITY COMPONENTS ─────────────────────────────────────────
+function Pill({ color, children }) {
+  var bg = { red: "#fee2e2", blue: "#dbeafe", green: "#dcfce7", amber: "#fef3c7", purple: "#ede9fe", grey: "#e2e8f0", orange: "#ffedd5" };
+  var fg = { red: "#991b1b", blue: "#1e40af", green: "#166534", amber: "#92400e", purple: "#5b21b6", grey: "#475569", orange: "#9a3412" };
+  return <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 600, background: bg[color], color: fg[color] }}>{children}</span>;
+}
+
+function KpiCard({ label, value, sub, accent }) {
+  return (
+    <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 10, padding: "14px 16px", borderLeft: accent ? "4px solid " + accent : undefined }}>
+      <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: "#64748b", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 24, fontWeight: 700, color: accent || "#7a1515" }}>{value}</div>
+      {sub && <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function SectionCard({ children, style }) {
+  return <div style={Object.assign({ background: "white", border: "1px solid #e2e8f0", borderRadius: 10, padding: "18px 20px", marginBottom: 14, boxShadow: "0 1px 2px rgba(0,0,0,0.02)" }, style || {})}>{children}</div>;
+}
+
+function Select({ value, onChange, options, style, label }) {
+  return (
+    <label style={Object.assign({ fontSize: 12, color: "#64748b", display: "flex", alignItems: "center", gap: 6 }, style || {})}>
+      {label && <span style={{ fontWeight: 600 }}>{label}</span>}
+      <select value={value} onChange={function(e) { onChange(e.target.value); }} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13, background: "white", color: "#1f2937" }}>
+        {options.map(function(o) { return <option key={o.value} value={o.value}>{o.label}</option>; })}
+      </select>
+    </label>
+  );
+}
+
+// ─── CSS CHART REPLACEMENTS (for Recharts) ──────────────────────
+function CSSDonut({ data, size }) {
+  var sz = size || 160;
+  var total = data.reduce(function(s, d) { return s + d.value; }, 0) || 1;
+  var cumPct = 0;
+  var parts = [];
+  data.forEach(function(d) {
+    var pct = (d.value / total) * 100;
+    parts.push(d.color + " " + cumPct + "% " + (cumPct + pct) + "%");
+    cumPct += pct;
+  });
+  var gradient = "conic-gradient(" + parts.join(", ") + ")";
+  return (
+    <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+      <div style={{ width: sz, height: sz, borderRadius: "50%", background: gradient, position: "relative", flexShrink: 0 }}>
+        <div style={{ position: "absolute", top: "22%", left: "22%", width: "56%", height: "56%", borderRadius: "50%", background: "white", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#1e293b" }}>{total}</div>
+            <div style={{ fontSize: 9, color: "#94a3b8", textTransform: "uppercase" }}>Total</div>
+          </div>
+        </div>
+      </div>
+      <div style={{ fontSize: 11, lineHeight: 1.8 }}>
+        {data.map(function(d, i) {
+          return (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: d.color, display: "inline-block", flexShrink: 0 }} />
+              <span style={{ color: "#374151" }}>{d.name}</span>
+              <span style={{ color: "#94a3b8", marginLeft: 4 }}>({d.value})</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CSSHBar({ data }) {
+  var maxVal = Math.max.apply(null, data.map(function(d) { return d.count || d.value || 0; })) || 1;
+  return (
+    <div>
+      {data.map(function(d, i) {
+        var val = d.count || d.value || 0;
+        var pct = (val / maxVal) * 100;
+        return (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <div style={{ width: 130, fontSize: 11, color: "#475569", textAlign: "right", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name || d.label}</div>
+            <div style={{ flex: 1, height: 16, background: "#f1f5f9", borderRadius: 4, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: pct + "%", background: d.color || "#3b82f6", borderRadius: 4 }} />
+            </div>
+            <div style={{ width: 30, fontSize: 11, fontWeight: 600, color: "#1f2937" }}>{val}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── SHARED: NEW CASE FORM ───────────────────────────────────────
+function NewCaseForm({ onClose, scopeLabel }) {
+  return (
+    <SectionCard style={{ borderLeft: "4px solid #9b1c1c" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <h4 style={{ margin: 0, fontSize: 16, color: "#9b1c1c" }}>Register New Case {scopeLabel && <span style={{ fontSize: 12, color: "#64748b", fontWeight: 400 }}>{"— "}{scopeLabel}</span>}</h4>
+        <button onClick={onClose} style={{ padding: "4px 12px", borderRadius: 6, border: "1px solid #e2e8f0", background: "white", color: "#64748b", fontSize: 12, cursor: "pointer" }}>{"Cancel ✕"}</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+        <div>
+          <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Case Number *</label>
+          <input type="text" placeholder="e.g., CS-1234/2026" style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Case Type *</label>
+          <select style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }}>
+            <option value="">Select type...</option>
+            {CASE_TYPES.map(function(t) { return <option key={t} value={t}>{t}</option>; })}
+          </select>
+        </div>
+        <div>
+          <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Direction *</label>
+          <select style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }}>
+            <option value="">Select...</option>
+            {DIRECTIONS.map(function(d) { return <option key={d} value={d}>{d}</option>; })}
+          </select>
+        </div>
+        <div>
+          <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Satsang Place / Centre *</label>
+          <select style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }}>
+            <option value="">Select centre...</option>
+            {CENTRES.map(function(c) { return <option key={c.id} value={c.id}>{c.name} ({c.type})</option>; })}
+          </select>
+        </div>
+        <div>
+          <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Court Name *</label>
+          <input type="text" placeholder="e.g., Civil Court, Ludhiana" style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Opposing Party *</label>
+          <input type="text" placeholder="Full name of opposing party" style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Advocate Name</label>
+          <input type="text" placeholder="Name of advocate" style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Priority *</label>
+          <select style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }}>
+            {PRIORITIES.map(function(p) { return <option key={p} value={p}>{p}</option>; })}
+          </select>
+        </div>
+        <div>
+          <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Filed Date *</label>
+          <input type="date" style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>First Hearing Date</label>
+          <input type="date" style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} />
+        </div>
+        <div style={{ gridColumn: "span 2" }}>
+          <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Case Summary / Brief Description</label>
+          <textarea rows={2} placeholder="Brief description — what it's about, key facts..." style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13, fontFamily: "inherit", resize: "vertical" }} />
+        </div>
+      </div>
+      {/* Document upload at registration */}
+      <div style={{ marginTop: 14, padding: 14, background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+        <h5 style={{ margin: "0 0 8px", fontSize: 13, color: "#1f2937" }}>Upload Initial Documents</h5>
+        <p style={{ fontSize: 11, color: "#64748b", margin: "0 0 10px" }}>Upload relevant documents now. The full checklist will be auto-generated based on case type. Remaining documents can be uploaded later.</p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div style={{ padding: "10px 12px", borderRadius: 6, border: "2px dashed #d1d5db", background: "white", textAlign: "center" }}>
+            <div style={{ fontSize: 20, marginBottom: 4 }}>{"📄"}</div>
+            <label style={{ fontSize: 12, color: "#9b1c1c", fontWeight: 600, cursor: "pointer" }}>
+              <input type="file" multiple style={{ display: "none" }} />
+              Click to upload or drag files
+            </label>
+            <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>PDF, JPG, PNG, DOCX (max 10MB each)</div>
+          </div>
+          <div style={{ fontSize: 12, color: "#64748b" }}>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>Common initial uploads:</div>
+            <div style={{ fontSize: 11, lineHeight: 1.8 }}>
+              {"• Copy of plaint / FIR / petition"}<br/>
+              {"• Title deed / ownership documents"}<br/>
+              {"• Court notice / summons"}<br/>
+              {"• Power of Attorney (Vakalatnama)"}<br/>
+              {"• Photographs / site plan"}
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* Similar Case Finder */}
+      <div style={{ marginTop: 14, padding: 12, background: "#ede9fe", borderRadius: 8, border: "1px solid #c4b5fd" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+          <span style={{ fontSize: 14 }}>{"🔍"}</span>
+          <h5 style={{ margin: 0, fontSize: 13, color: "#5b21b6" }}>Similar Cases Found</h5>
+        </div>
+        <div style={{ padding: "8px 10px", background: "white", borderRadius: 6, fontSize: 11, color: "#475569" }}>
+          <em>Start filling in the case details above {"—"} matching cases will appear here automatically.</em>
+        </div>
+      </div>
+      <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+        <button style={{ padding: "10px 24px", borderRadius: 8, border: "none", background: "linear-gradient(135deg, #9b1c1c, #7a1515)", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{"Register Case & Generate Checklist"}</button>
+        <button onClick={onClose} style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid #e2e8f0", background: "white", color: "#475569", fontSize: 13, cursor: "pointer" }}>Cancel</button>
+      </div>
+    </SectionCard>
+  );
+}
+
+// ─── SHARED: BULK IMPORT PANEL ───────────────────────────────────
+function BulkImportPanel({ onClose }) {
+  var _s = useState(1);
+  var importStep = _s[0], setImportStep = _s[1];
+  return (
+    <SectionCard style={{ borderLeft: "4px solid #3b82f6" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <h4 style={{ margin: 0, fontSize: 16, color: "#1e40af" }}>{"Bulk Import — Existing / Ongoing Cases from Excel"}</h4>
+        <button onClick={onClose} style={{ padding: "4px 12px", borderRadius: 6, border: "1px solid #e2e8f0", background: "white", color: "#64748b", fontSize: 12, cursor: "pointer" }}>{"Cancel ✕"}</button>
+      </div>
+
+      {/* Step indicator */}
+      <div style={{ display: "flex", gap: 0, marginBottom: 16 }}>
+        {[{ n: 1, label: "Upload File" }, { n: 2, label: "Preview & Map Columns" }, { n: 3, label: "Import" }].map(function(s, i) {
+          return (
+            <div key={s.n} style={{ display: "flex", alignItems: "center", gap: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: "50%", background: importStep >= s.n ? "#3b82f6" : "#e2e8f0", color: importStep >= s.n ? "white" : "#94a3b8", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>{s.n}</div>
+                <span style={{ fontSize: 12, fontWeight: importStep === s.n ? 700 : 400, color: importStep === s.n ? "#1e40af" : "#64748b" }}>{s.label}</span>
+              </div>
+              {i < 2 && <div style={{ width: 40, height: 2, background: importStep > s.n ? "#3b82f6" : "#e2e8f0", margin: "0 8px" }} />}
+            </div>
+          );
+        })}
+      </div>
+
+      {importStep === 1 && (
+        <div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div style={{ padding: "20px", borderRadius: 8, border: "2px dashed #93c5fd", background: "#eff6ff", textAlign: "center" }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>{"📊"}</div>
+              <label style={{ fontSize: 14, color: "#1e40af", fontWeight: 600, cursor: "pointer" }}>
+                <input type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} />
+                Upload Excel / CSV File
+              </label>
+              <div style={{ fontSize: 11, color: "#64748b", marginTop: 6 }}>Supports .xlsx, .xls, .csv formats</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#1f2937", marginBottom: 8 }}>Expected Columns</div>
+              <div style={{ fontSize: 11, color: "#475569", lineHeight: 1.8 }}>
+                The system will try to auto-map your columns. At minimum, your sheet should contain:<br/><br/>
+                <span style={{ fontWeight: 600 }}>Required:</span> Case Number, Case Type, Direction (Against/By Us), Court Name, Centre/Satsang Place, Opposing Party, Filed Date, Status<br/><br/>
+                <span style={{ fontWeight: 600 }}>Optional:</span> Advocate Name, Priority, Next Hearing Date, Last Hearing Date, Last Hearing Summary, Case Summary, Remarks
+              </div>
+              <button style={{ marginTop: 10, padding: "6px 14px", borderRadius: 6, border: "1px solid #3b82f6", background: "white", color: "#1e40af", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Download Template (.xlsx)</button>
+            </div>
+          </div>
+          <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+            <button onClick={function() { setImportStep(2); }} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#3b82f6", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{"Upload & Preview →"}</button>
+          </div>
+        </div>
+      )}
+
+      {importStep === 2 && (
+        <div>
+          <div style={{ padding: 12, background: "#f0fdf4", borderRadius: 8, border: "1px solid #bbf7d0", marginBottom: 14 }}>
+            <div style={{ fontSize: 13, color: "#166534", fontWeight: 600 }}>{"✓ File parsed: "}<span style={{ fontWeight: 400 }}>{"Legal_Cases_Zone2_2024.xlsx — 47 rows found, 12 columns detected"}</span></div>
+          </div>
+
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#1f2937", marginBottom: 8 }}>Column Mapping</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+            {[
+              { excel: "Case No.", maps: "Case Number", status: "matched" },
+              { excel: "Type of Case", maps: "Case Type", status: "matched" },
+              { excel: "Against/By", maps: "Direction", status: "matched" },
+              { excel: "Court", maps: "Court Name", status: "matched" },
+              { excel: "Centre Name", maps: "Centre / Satsang Place", status: "matched" },
+              { excel: "Opposite Party", maps: "Opposing Party", status: "matched" },
+              { excel: "Advocate", maps: "Advocate Name", status: "matched" },
+              { excel: "Date of Filing", maps: "Filed Date", status: "matched" },
+              { excel: "Current Status", maps: "Status", status: "matched" },
+              { excel: "Next Date", maps: "Next Hearing Date", status: "matched" },
+              { excel: "Remarks", maps: "Case Summary", status: "matched" },
+              { excel: "Priority Level", maps: "Priority", status: "review" },
+            ].map(function(col, i) {
+              return (
+                <div key={i} style={{ padding: "8px 10px", borderRadius: 6, border: "1px solid #e2e8f0", background: "white", fontSize: 11, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ color: "#64748b" }}>Excel: <span style={{ fontWeight: 600, color: "#1f2937" }}>{col.excel}</span></div>
+                    <div style={{ color: "#64748b" }}>{"→"} SRS: <span style={{ fontWeight: 600, color: "#1e40af" }}>{col.maps}</span></div>
+                  </div>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: col.status === "matched" ? "#16a34a" : "#f59e0b" }} />
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#1f2937", marginBottom: 8 }}>Data Preview (first 5 rows)</div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, minWidth: 800 }}>
+              <thead>
+                <tr style={{ background: "#f1f5f9" }}>
+                  {["#", "Case No.", "Type", "Direction", "Court", "Centre", "Opposing Party", "Status", "Next Date"].map(function(h) { return <th key={h} style={{ padding: "6px 8px", textAlign: "left", fontSize: 10, textTransform: "uppercase" }}>{h}</th>; })}
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { n: 1, cn: "CS-2341/2024", t: "Civil", d: "Against", ct: "Civil Court, Ludhiana", ce: "Ludhiana Main", op: "Sh. Gurbachan Singh", s: "Active", nd: "2026-05-18" },
+                  { n: 2, cn: "RV-876/2023", t: "Revenue", d: "By Us", ct: "Tehsildar, Khanna", ce: "Khanna", op: "Punjab Govt.", s: "Adjourned", nd: "2026-06-02" },
+                  { n: 3, cn: "CR-445/2025", t: "Criminal", d: "Against", ct: "Sessions Court, Amritsar", ce: "Amritsar Main", op: "Sh. Rattan Lal", s: "Active", nd: "2026-05-25" },
+                  { n: 4, cn: "WP-1122/2024", t: "Writ", d: "By Us", ct: "High Court, Chandigarh", ce: "Jalandhar Main", op: "Haryana State Govt.", s: "Reserved", nd: "—" },
+                  { n: 5, cn: "CS-5567/2023", t: "Civil", d: "Against", ct: "District Court, Jaipur", ce: "Jaipur Main", op: "M/s Sunrise Builders", s: "Adjourned", nd: "2026-05-30" },
+                ].map(function(r) {
+                  return (
+                    <tr key={r.n} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                      <td style={{ padding: "6px 8px" }}>{r.n}</td>
+                      <td style={{ padding: "6px 8px", fontFamily: "monospace" }}>{r.cn}</td>
+                      <td style={{ padding: "6px 8px" }}>{r.t}</td>
+                      <td style={{ padding: "6px 8px" }}>{r.d}</td>
+                      <td style={{ padding: "6px 8px" }}>{r.ct}</td>
+                      <td style={{ padding: "6px 8px" }}>{r.ce}</td>
+                      <td style={{ padding: "6px 8px" }}>{r.op}</td>
+                      <td style={{ padding: "6px 8px" }}>{r.s}</td>
+                      <td style={{ padding: "6px 8px" }}>{r.nd}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ marginTop: 8, fontSize: 11, color: "#64748b" }}>... and 42 more rows</div>
+
+          <div style={{ marginTop: 14, padding: 12, background: "#fef3c7", borderRadius: 8, border: "1px solid #fde68a" }}>
+            <div style={{ fontSize: 12, color: "#92400e", fontWeight: 600, marginBottom: 4 }}>Pre-import Validation</div>
+            <div style={{ fontSize: 11, color: "#92400e" }}>
+              {"✓ 45 rows valid  |  ⚠ 2 rows need review (centre name not found — manual mapping required)  |  ✗ 0 duplicates found"}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+            <button onClick={function() { setImportStep(1); }} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #e2e8f0", background: "white", color: "#475569", fontSize: 13, cursor: "pointer" }}>{"← Back"}</button>
+            <button onClick={function() { setImportStep(3); }} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#16a34a", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{"Import 45 Valid Cases →"}</button>
+          </div>
+        </div>
+      )}
+
+      {importStep === 3 && (
+        <div style={{ textAlign: "center", padding: "20px 0" }}>
+          <div style={{ fontSize: 36, marginBottom: 10 }}>{"✅"}</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#166534", marginBottom: 6 }}>Import Complete</div>
+          <div style={{ fontSize: 13, color: "#475569", marginBottom: 4 }}>45 cases imported successfully. 2 cases moved to review queue for manual centre mapping.</div>
+          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 14 }}>Document checklists have been auto-generated for all imported cases based on their case type.</div>
+          <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
+            <button onClick={onClose} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#3b82f6", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>View Imported Cases</button>
+            <button onClick={function() { setImportStep(1); }} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #e2e8f0", background: "white", color: "#475569", fontSize: 13, cursor: "pointer" }}>Import Another File</button>
+          </div>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+// ─── SHARED: HEARING CALENDAR ───────────────────────────────────
+function HearingCalendar({ cases, scopeLabel, onCaseClick }) {
+  var _cm = useState(function() { var n = new Date(); return n.getFullYear() + "-" + String(n.getMonth() + 1).padStart(2, "0"); });
+  var calMonth = _cm[0], setCalMonth = _cm[1];
+  var _sd = useState(null);
+  var selectedDay = _sd[0], setSelectedDay = _sd[1];
+  var calYear = Number(calMonth.split("-")[0]);
+  var calMo = Number(calMonth.split("-")[1]) - 1;
+  var daysInMonth = new Date(calYear, calMo + 1, 0).getDate();
+  var firstDow = new Date(calYear, calMo, 1).getDay();
+
+  var allHearings = cases.flatMap(function(c) {
+    var items = c.hearings.filter(function(h) { return h.date.startsWith(calMonth); }).map(function(h) {
+      return Object.assign({}, h, { caseId: c.caseId, caseNumber: c.caseNumber, caseType: c.caseType,
+        centreName: c.centreName, areaName: c.areaName, stateName: c.stateName,
+        court: c.court, opposingParty: c.opposingParty, advocate: c.advocate,
+        priority: c.priority, direction: c.direction, internalId: c.id,
+        isNextHearing: false });
+    });
+    if (c.nextHearingDate && c.nextHearingDate.startsWith(calMonth)) {
+      var alreadyIn = items.find(function(h) { return h.date === c.nextHearingDate; });
+      if (!alreadyIn) {
+        items.push({
+          id: "next", date: c.nextHearingDate, summary: "Upcoming hearing (scheduled)",
+          adjournmentReason: null, nextDate: null, actionItems: "",
+          caseId: c.caseId, caseNumber: c.caseNumber, caseType: c.caseType,
+          centreName: c.centreName, areaName: c.areaName, stateName: c.stateName,
+          court: c.court, opposingParty: c.opposingParty, advocate: c.advocate,
+          priority: c.priority, direction: c.direction, internalId: c.id,
+          isNextHearing: true,
+        });
+      }
+    }
+    return items;
+  }).sort(function(a, b) { return a.date.localeCompare(b.date); });
+
+  var dayMap = {};
+  allHearings.forEach(function(h) {
+    var day = Number(h.date.split("-")[2]);
+    if (!dayMap[day]) dayMap[day] = [];
+    dayMap[day].push(h);
+  });
+
+  var selectedHearings = selectedDay ? (dayMap[selectedDay] || []) : [];
+  var monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+  return (
+    <SectionCard>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <h4 style={{ margin: 0, fontSize: 14 }}>Hearing Calendar {scopeLabel && <span style={{ fontSize: 12, color: "#64748b", fontWeight: 400 }}>{"— "}{scopeLabel}</span>}</h4>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button onClick={function() {
+            var d = new Date(calYear, calMo - 1, 1);
+            setCalMonth(d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"));
+            setSelectedDay(null);
+          }} style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", fontSize: 12 }}>{"←"}</button>
+          <span style={{ fontSize: 13, fontWeight: 600, minWidth: 120, textAlign: "center" }}>{monthNames[calMo]} {calYear}</span>
+          <button onClick={function() {
+            var d = new Date(calYear, calMo + 1, 1);
+            setCalMonth(d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"));
+            setSelectedDay(null);
+          }} style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", fontSize: 12 }}>{"→"}</button>
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, textAlign: "center", fontSize: 11 }}>
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(function(d) { return <div key={d} style={{ padding: "4px 0", fontWeight: 700, color: "#64748b" }}>{d}</div>; })}
+        {Array.from({ length: firstDow }).map(function(_, i) { return <div key={"e" + i} />; })}
+        {Array.from({ length: daysInMonth }).map(function(_, i) {
+          var day = i + 1;
+          var hearingsOnDay = dayMap[day] || [];
+          var hasHearing = hearingsOnDay.length > 0;
+          var isSelected = selectedDay === day;
+          var today = new Date();
+          var isToday = calYear === today.getFullYear() && calMo === today.getMonth() && day === today.getDate();
+          return (
+            <div key={day} onClick={function() { if (hasHearing) setSelectedDay(isSelected ? null : day); }}
+              style={{
+                padding: "6px 2px", borderRadius: 6, minHeight: 42,
+                background: isSelected ? "#fef2f2" : hasHearing ? "#fefce8" : isToday ? "#eff6ff" : "transparent",
+                border: isSelected ? "2px solid #9b1c1c" : hasHearing ? "1px solid #fde68a" : isToday ? "1px solid #bfdbfe" : "1px solid transparent",
+                cursor: hasHearing ? "pointer" : "default",
+                transition: "all 0.15s",
+              }}>
+              <div style={{ fontSize: 11, fontWeight: hasHearing || isToday ? 700 : 400, color: isSelected ? "#9b1c1c" : hasHearing ? "#92400e" : isToday ? "#1e40af" : "#475569" }}>{day}</div>
+              {hasHearing && (
+                <div style={{ display: "flex", justifyContent: "center", gap: 2, marginTop: 2, flexWrap: "wrap" }}>
+                  {hearingsOnDay.slice(0, 4).map(function(h, hi) {
+                    return (
+                      <span key={hi} title={h.caseNumber + " (" + h.caseType + ")"}
+                        style={{
+                          width: 6, height: 6, borderRadius: "50%",
+                          background: h.isNextHearing ? "#9b1c1c" : (TYPE_COLORS[h.caseType] || "#94a3b8"),
+                          display: "inline-block",
+                          border: h.isNextHearing ? "1px solid #fecaca" : "none",
+                        }} />
+                    );
+                  })}
+                  {hearingsOnDay.length > 4 && <span style={{ fontSize: 8, color: "#94a3b8" }}>+{hearingsOnDay.length - 4}</span>}
+                </div>
+              )}
+              {hasHearing && <div style={{ fontSize: 9, color: "#94a3b8", marginTop: 1 }}>{hearingsOnDay.length}</div>}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "#64748b" }}>
+        <span>{allHearings.length} hearing(s) this month</span>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          {Object.entries(TYPE_COLORS).map(function(entry) {
+            var t = entry[0], c = entry[1];
+            return (
+              <span key={t} style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: c, display: "inline-block" }} />{t}
+              </span>
+            );
+          })}
+          <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#9b1c1c", display: "inline-block", border: "1px solid #fecaca" }} />Upcoming
+          </span>
+        </div>
+      </div>
+
+      {/* Expanded Day Detail */}
+      {selectedDay && selectedHearings.length > 0 && (
+        <div style={{ marginTop: 14, borderTop: "2px solid #9b1c1c", paddingTop: 14 }}>
+          <h5 style={{ margin: "0 0 10px", fontSize: 13, color: "#9b1c1c" }}>
+            {selectedDay} {monthNames[calMo]} {calYear} {"—"} {selectedHearings.length} hearing(s)
+          </h5>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {selectedHearings.map(function(h, i) {
+              return (
+                <div key={i} style={{
+                  padding: "12px 14px", borderRadius: 8, border: "1px solid #e2e8f0", background: h.isNextHearing ? "#fef2f2" : "white",
+                  borderLeft: "4px solid " + (h.isNextHearing ? "#9b1c1c" : (TYPE_COLORS[h.caseType] || "#94a3b8")),
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 6 }}>
+                    <div>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                        <span style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 600, color: "#1f2937" }}>{h.caseId}</span>
+                        <Pill color={h.caseType === "Civil" ? "blue" : h.caseType === "Criminal" ? "red" : h.caseType === "Revenue" ? "amber" : h.caseType === "Writ Petition" ? "purple" : h.caseType === "Consumer" ? "green" : "grey"}>{h.caseType}</Pill>
+                        <Pill color={h.priority === "Critical" ? "red" : h.priority === "High" ? "amber" : "green"}>{h.priority}</Pill>
+                        {h.isNextHearing && <Pill color="red">Upcoming</Pill>}
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 600, marginTop: 4 }}>{h.caseNumber}</div>
+                    </div>
+                    <Pill color={h.direction === "Filed Against Us" ? "red" : "blue"}>{h.direction === "Filed Against Us" ? "Against" : "By Us"}</Pill>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, fontSize: 11, color: "#475569", marginBottom: 6 }}>
+                    <div><span style={{ color: "#94a3b8" }}>Centre:</span> {h.centreName}</div>
+                    <div><span style={{ color: "#94a3b8" }}>Court:</span> {h.court}</div>
+                    <div><span style={{ color: "#94a3b8" }}>Advocate:</span> {h.advocate}</div>
+                  </div>
+                  <div style={{ fontSize: 12, color: "#475569", marginBottom: 4 }}>{h.summary}</div>
+                  {h.adjournmentReason && (
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4 }}>
+                      <Pill color={h.adjournmentReason.cause === "Our side" ? "red" : h.adjournmentReason.cause === "Other party" ? "blue" : h.adjournmentReason.cause === "Court" ? "grey" : "amber"}>{h.adjournmentReason.label}</Pill>
+                      <span style={{ fontSize: 10, color: "#94a3b8" }}>Cause: {h.adjournmentReason.cause}</span>
+                    </div>
+                  )}
+                  {h.nextDate && <div style={{ fontSize: 11, color: "#9b1c1c", fontWeight: 600 }}>Next date: {h.nextDate}</div>}
+                  {h.actionItems && <div style={{ fontSize: 11, color: "#64748b", fontStyle: "italic" }}>Action: {h.actionItems}</div>}
+                  {onCaseClick && (
+                    <button onClick={function() { onCaseClick(h.internalId, h); }} style={{ marginTop: 6, padding: "4px 10px", borderRadius: 6, border: "1px solid #9b1c1c", background: "white", color: "#9b1c1c", fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{"Open Case →"}</button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+// ─── SHARED: ACTION BAR ─────────────────────────────────────────
+function ActionBar({ showForm, setShowForm, showImport, setShowImport, scopeLabel }) {
+  return (
+    <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+      <button onClick={function() { setShowForm(!showForm); if (!showForm) setShowImport(false); }} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: showForm ? "#e2e8f0" : "linear-gradient(135deg, #9b1c1c, #7a1515)", color: showForm ? "#475569" : "white", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+        {showForm ? "Cancel" : "+ Register New Case"}
+      </button>
+      <button onClick={function() { setShowImport(!showImport); if (!showImport) setShowForm(false); }} style={{ padding: "8px 16px", borderRadius: 8, border: showImport ? "1px solid #e2e8f0" : "1px solid #3b82f6", background: showImport ? "#e2e8f0" : "white", color: showImport ? "#475569" : "#1e40af", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+        {showImport ? "Cancel" : "📊 Import from Excel"}
+      </button>
+    </div>
+  );
+}
+
+// ─── ZONE VIEW ───────────────────────────────────────────────────
+function ZoneView({ cases, onDrill }) {
+  var _zf = useState("all"); var zoneFilter = _zf[0], setZoneFilter = _zf[1];
+  var _sf = useState(false); var showForm = _sf[0], setShowForm = _sf[1];
+  var _si = useState(false); var showImport = _si[0], setShowImport = _si[1];
+  var filtered = zoneFilter === "all" ? cases : cases.filter(function(c) { return c.zoneId === Number(zoneFilter); });
+  var active = filtered.filter(function(c) { return c.status !== "Disposed"; });
+  var upcoming7 = active.filter(function(c) {
+    if (!c.nextHearingDate) return false;
+    var d = new Date(c.nextHearingDate);
+    var now = new Date();
+    return d >= now && d <= new Date(now.getTime() + 7 * 86400000);
+  });
+
+  var typeDist = CASE_TYPES.map(function(t) { return { name: t, value: filtered.filter(function(c) { return c.caseType === t; }).length, color: TYPE_COLORS[t] }; }).filter(function(t) { return t.value > 0; });
+  var statusDist = STATUSES.map(function(s) { return { name: s, value: filtered.filter(function(c) { return c.status === s; }).length, color: STATUS_COLORS[s] }; }).filter(function(s) { return s.value > 0; });
+
+  var allH = filtered.flatMap(function(c) { return c.hearings; });
+  var adjReasons = ADJOURNMENT_REASONS.map(function(r) {
+    return {
+      name: r.label.length > 20 ? r.label.slice(0, 20) + "…" : r.label,
+      fullName: r.label,
+      count: allH.filter(function(h) { return h.adjournmentReason && h.adjournmentReason.code === r.code; }).length,
+      cause: r.cause,
+      color: CAUSE_COLORS[r.cause],
+    };
+  }).filter(function(r) { return r.count > 0; }).sort(function(a, b) { return b.count - a.count; });
+
+  var causeSummary = {};
+  allH.forEach(function(h) {
+    if (h.adjournmentReason) {
+      var c = h.adjournmentReason.cause;
+      causeSummary[c] = (causeSummary[c] || 0) + 1;
+    }
+  });
+  var causeData = Object.entries(causeSummary).map(function(entry) { return { name: entry[0], value: entry[1], color: CAUSE_COLORS[entry[0]] }; }).sort(function(a, b) { return b.value - a.value; });
+
+  var stateRows = STATES.filter(function(s) { return zoneFilter === "all" || s.zoneId === Number(zoneFilter); }).map(function(s) {
+    var sCases = filtered.filter(function(c) { return c.stateId === s.id; });
+    var sActive = sCases.filter(function(c) { return c.status !== "Disposed"; });
+    var zn = ZONES.find(function(z) { return z.id === s.zoneId; });
+    return Object.assign({}, s, { total: sCases.length, active: sActive.length, critical: sActive.filter(function(c) { return c.priority === "Critical"; }).length, zoneName: zn && zn.name });
+  }).filter(function(s) { return s.total > 0; }).sort(function(a, b) { return b.active - a.active; });
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <h3 style={{ margin: 0, fontSize: 16, color: "#1f2937" }}>Zone Dashboard</h3>
+        <Select value={zoneFilter} onChange={setZoneFilter} label="Zone:" options={[{ value: "all", label: "All Zones" }].concat(ZONES.map(function(z) { return { value: String(z.id), label: z.name }; }))} />
+      </div>
+
+      <ActionBar showForm={showForm} setShowForm={setShowForm} showImport={showImport} setShowImport={setShowImport} scopeLabel="Zone" />
+      {showForm && <NewCaseForm onClose={function() { setShowForm(false); }} scopeLabel="Zone Level" />}
+      {showImport && <BulkImportPanel onClose={function() { setShowImport(false); }} />}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 16 }}>
+        <KpiCard label="Total Cases" value={filtered.length} />
+        <KpiCard label="Active" value={active.length} accent="#16a34a" />
+        <KpiCard label="Critical" value={active.filter(function(c) { return c.priority === "Critical"; }).length} accent="#ef4444" />
+        <KpiCard label="Hearings in 7 Days" value={upcoming7.length} accent="#f59e0b" />
+        <KpiCard label="Disposed" value={filtered.filter(function(c) { return c.status === "Disposed"; }).length} accent="#94a3b8" />
+      </div>
+
+      <HearingCalendar cases={filtered} scopeLabel={zoneFilter === "all" ? "All Zones" : (ZONES.find(function(z) { return z.id === Number(zoneFilter); }) || {}).name} onCaseClick={function(id) { var mc = cases.find(function(c) { return c.id === id; }); if (mc) onDrill("centre", mc.centreId, id); }} />
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <SectionCard>
+          <h4 style={{ margin: "0 0 12px", fontSize: 14 }}>Case Type Distribution</h4>
+          <CSSDonut data={typeDist} size={160} />
+        </SectionCard>
+        <SectionCard>
+          <h4 style={{ margin: "0 0 12px", fontSize: 14 }}>Case Status Distribution</h4>
+          <CSSDonut data={statusDist} size={160} />
+        </SectionCard>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 14, marginBottom: 14 }}>
+        <SectionCard>
+          <h4 style={{ margin: "0 0 12px", fontSize: 14 }}>Adjournment Reason Analysis</h4>
+          <CSSHBar data={adjReasons} />
+        </SectionCard>
+        <SectionCard>
+          <h4 style={{ margin: "0 0 12px", fontSize: 14 }}>Whose Cause? (Adjournments)</h4>
+          <CSSDonut data={causeData} size={140} />
+        </SectionCard>
+      </div>
+
+      <SectionCard>
+        <h4 style={{ margin: "0 0 12px", fontSize: 14 }}>State-wise Case Summary</h4>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: "#f1f5f9" }}>
+              <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5 }}>State</th>
+              <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 11, textTransform: "uppercase" }}>Zone</th>
+              <th style={{ padding: "10px 12px", textAlign: "center", fontSize: 11, textTransform: "uppercase" }}>Total</th>
+              <th style={{ padding: "10px 12px", textAlign: "center", fontSize: 11, textTransform: "uppercase" }}>Active</th>
+              <th style={{ padding: "10px 12px", textAlign: "center", fontSize: 11, textTransform: "uppercase" }}>Critical</th>
+              <th style={{ padding: "10px 12px", textAlign: "center", fontSize: 11, textTransform: "uppercase" }}>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stateRows.map(function(s) {
+              return (
+                <tr key={s.id} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                  <td style={{ padding: "10px 12px", fontWeight: 600 }}>{s.name}</td>
+                  <td style={{ padding: "10px 12px" }}><Pill color="grey">{s.zoneName}</Pill></td>
+                  <td style={{ padding: "10px 12px", textAlign: "center" }}>{s.total}</td>
+                  <td style={{ padding: "10px 12px", textAlign: "center" }}>{s.active}</td>
+                  <td style={{ padding: "10px 12px", textAlign: "center" }}>{s.critical > 0 ? <Pill color="red">{s.critical}</Pill> : "—"}</td>
+                  <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                    <button onClick={function() { onDrill("state", s.id); }} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #9b1c1c", background: "white", color: "#9b1c1c", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{"View →"}</button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </SectionCard>
+    </div>
+  );
+}
+
+// ─── STATE VIEW ──────────────────────────────────────────────────
+function StateView({ cases, initialStateId, onDrill }) {
+  var _si = useState(initialStateId || STATES[0].id); var stateId = _si[0], setStateId = _si[1];
+  var _af = useState("all"); var areaFilter = _af[0], setAreaFilter = _af[1];
+  var _sf = useState(false); var showForm = _sf[0], setShowForm = _sf[1];
+  var _sim = useState(false); var showImport = _sim[0], setShowImport = _sim[1];
+  var state = STATES.find(function(s) { return s.id === Number(stateId); });
+  var stateAreas = AREAS.filter(function(a) { return a.stateId === Number(stateId); });
+  var stateCases = cases.filter(function(c) { return c.stateId === Number(stateId); });
+  var filtered = areaFilter === "all" ? stateCases : stateCases.filter(function(c) { return c.areaId === Number(areaFilter); });
+  var active = filtered.filter(function(c) { return c.status !== "Disposed"; });
+
+  var areaRows = stateAreas.map(function(a) {
+    var aCases = stateCases.filter(function(c) { return c.areaId === a.id; });
+    var aActive = aCases.filter(function(c) { return c.status !== "Disposed"; });
+    return Object.assign({}, a, { total: aCases.length, active: aActive.length, critical: aActive.filter(function(c) { return c.priority === "Critical"; }).length });
+  }).filter(function(a) { return a.total > 0; }).sort(function(a, b) { return b.active - a.active; });
+
+  var allH = filtered.flatMap(function(c) { return c.hearings; });
+  var causeMap = {};
+  allH.forEach(function(h) { if (h.adjournmentReason) { var c = h.adjournmentReason.cause; causeMap[c] = (causeMap[c] || 0) + 1; } });
+  var causeData = Object.entries(causeMap).map(function(entry) { return { name: entry[0], value: entry[1], color: CAUSE_COLORS[entry[0]] }; });
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+        <h3 style={{ margin: 0, fontSize: 16, color: "#1f2937" }}>{"State View — "}{state && state.name}</h3>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Select value={stateId} onChange={function(v) { setStateId(Number(v)); setAreaFilter("all"); }} label="State:" options={STATES.map(function(s) { return { value: String(s.id), label: s.name }; })} />
+          <Select value={areaFilter} onChange={setAreaFilter} label="Area:" options={[{ value: "all", label: "All Areas" }].concat(stateAreas.map(function(a) { return { value: String(a.id), label: a.name }; }))} />
+        </div>
+      </div>
+
+      <ActionBar showForm={showForm} setShowForm={setShowForm} showImport={showImport} setShowImport={setShowImport} scopeLabel="State" />
+      {showForm && <NewCaseForm onClose={function() { setShowForm(false); }} scopeLabel={"State: " + (state && state.name)} />}
+      {showImport && <BulkImportPanel onClose={function() { setShowImport(false); }} />}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 16 }}>
+        <KpiCard label="Areas" value={stateAreas.length} />
+        <KpiCard label="Total Cases" value={filtered.length} />
+        <KpiCard label="Active" value={active.length} accent="#16a34a" />
+        <KpiCard label="Critical" value={active.filter(function(c) { return c.priority === "Critical"; }).length} accent="#ef4444" />
+        <KpiCard label="Disposed" value={filtered.filter(function(c) { return c.status === "Disposed"; }).length} accent="#94a3b8" />
+      </div>
+
+      <HearingCalendar cases={filtered} scopeLabel={state && state.name} onCaseClick={function(id) { var mc = cases.find(function(c) { return c.id === id; }); if (mc) onDrill("centre", mc.centreId, id); }} />
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <SectionCard>
+          <h4 style={{ margin: "0 0 12px", fontSize: 14 }}>Direction Split</h4>
+          <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+            <div style={{ flex: 1 }}>
+              {DIRECTIONS.map(function(d) {
+                var count = filtered.filter(function(c) { return c.direction === d; }).length;
+                var pct = filtered.length ? Math.round(100 * count / filtered.length) : 0;
+                return (
+                  <div key={d} style={{ marginBottom: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                      <span>{d}</span><span style={{ fontWeight: 700 }}>{count} ({pct}%)</span>
+                    </div>
+                    <div style={{ height: 8, background: "#e2e8f0", borderRadius: 4 }}>
+                      <div style={{ height: 8, borderRadius: 4, width: pct + "%", background: d === "Filed Against Us" ? "#ef4444" : "#3b82f6" }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </SectionCard>
+        <SectionCard>
+          <h4 style={{ margin: "0 0 12px", fontSize: 14 }}>Whose Cause? (State-level)</h4>
+          <CSSDonut data={causeData} size={120} />
+        </SectionCard>
+      </div>
+
+      <SectionCard>
+        <h4 style={{ margin: "0 0 12px", fontSize: 14 }}>Area-wise Case Summary</h4>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: "#f1f5f9" }}>
+              <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 11, textTransform: "uppercase" }}>Area</th>
+              <th style={{ padding: "10px 12px", textAlign: "center", fontSize: 11, textTransform: "uppercase" }}>Total</th>
+              <th style={{ padding: "10px 12px", textAlign: "center", fontSize: 11, textTransform: "uppercase" }}>Active</th>
+              <th style={{ padding: "10px 12px", textAlign: "center", fontSize: 11, textTransform: "uppercase" }}>Critical</th>
+              <th style={{ padding: "10px 12px", textAlign: "center", fontSize: 11, textTransform: "uppercase" }}>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {areaRows.map(function(a) {
+              return (
+                <tr key={a.id} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                  <td style={{ padding: "10px 12px", fontWeight: 600 }}>{a.name}</td>
+                  <td style={{ padding: "10px 12px", textAlign: "center" }}>{a.total}</td>
+                  <td style={{ padding: "10px 12px", textAlign: "center" }}>{a.active}</td>
+                  <td style={{ padding: "10px 12px", textAlign: "center" }}>{a.critical > 0 ? <Pill color="red">{a.critical}</Pill> : "—"}</td>
+                  <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                    <button onClick={function() { onDrill("area", a.id); }} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #9b1c1c", background: "white", color: "#9b1c1c", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{"View →"}</button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </SectionCard>
+    </div>
+  );
+}
+
+// ─── AREA VIEW ───────────────────────────────────────────────────
+function AreaView({ cases, initialAreaId, onDrill }) {
+  var _ai = useState(initialAreaId || AREAS[0].id); var areaId = _ai[0], setAreaId = _ai[1];
+  var _cf = useState("all"); var centreFilter = _cf[0], setCentreFilter = _cf[1];
+  var _stf = useState("all"); var statusFilter = _stf[0], setStatusFilter = _stf[1];
+  var _tf = useState("all"); var typeFilter = _tf[0], setTypeFilter = _tf[1];
+  var _sf = useState(false); var showForm = _sf[0], setShowForm = _sf[1];
+  var _si = useState(false); var showImport = _si[0], setShowImport = _si[1];
+  var area = AREAS.find(function(a) { return a.id === Number(areaId); });
+  var areaCentres = CENTRES.filter(function(c) { return c.areaId === Number(areaId); });
+  var areaCases = cases.filter(function(c) { return c.areaId === Number(areaId); });
+  if (centreFilter !== "all") areaCases = areaCases.filter(function(c) { return c.centreId === Number(centreFilter); });
+  if (statusFilter !== "all") areaCases = areaCases.filter(function(c) { return c.status === statusFilter; });
+  if (typeFilter !== "all") areaCases = areaCases.filter(function(c) { return c.caseType === typeFilter; });
+  var active = areaCases.filter(function(c) { return c.status !== "Disposed"; });
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+        <h3 style={{ margin: 0, fontSize: 16, color: "#1f2937" }}>{"Area View — "}{area && area.name}</h3>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Select value={areaId} onChange={function(v) { setAreaId(Number(v)); setCentreFilter("all"); }} label="Area:" options={AREAS.map(function(a) { return { value: String(a.id), label: a.name }; })} />
+          <Select value={centreFilter} onChange={setCentreFilter} label="Centre:" options={[{ value: "all", label: "All Centres" }].concat(areaCentres.map(function(c) { return { value: String(c.id), label: c.name }; }))} />
+          <Select value={statusFilter} onChange={setStatusFilter} label="Status:" options={[{ value: "all", label: "All" }].concat(STATUSES.map(function(s) { return { value: s, label: s }; }))} />
+          <Select value={typeFilter} onChange={setTypeFilter} label="Type:" options={[{ value: "all", label: "All" }].concat(CASE_TYPES.map(function(t) { return { value: t, label: t }; }))} />
+        </div>
+      </div>
+
+      <ActionBar showForm={showForm} setShowForm={setShowForm} showImport={showImport} setShowImport={setShowImport} scopeLabel="Area" />
+      {showForm && <NewCaseForm onClose={function() { setShowForm(false); }} scopeLabel={"Area: " + (area && area.name)} />}
+      {showImport && <BulkImportPanel onClose={function() { setShowImport(false); }} />}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 16 }}>
+        <KpiCard label="Centres" value={areaCentres.length} />
+        <KpiCard label="Total Cases" value={areaCases.length} />
+        <KpiCard label="Active" value={active.length} accent="#16a34a" />
+        <KpiCard label="Critical" value={active.filter(function(c) { return c.priority === "Critical"; }).length} accent="#ef4444" />
+        <KpiCard label="Upcoming 7d" value={active.filter(function(c) { if (!c.nextHearingDate) return false; var d = new Date(c.nextHearingDate); var now = new Date(); return d >= now && d <= new Date(now.getTime() + 7 * 86400000); }).length} accent="#f59e0b" />
+      </div>
+
+      <HearingCalendar cases={areaCases} scopeLabel={area && area.name} onCaseClick={function(id) { var mc = cases.find(function(c) { return c.id === id; }); if (mc) onDrill("centre", mc.centreId, id); }} />
+
+      <SectionCard>
+        <h4 style={{ margin: "0 0 12px", fontSize: 14 }}>{"Case Register — "}{area && area.name}</h4>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 900 }}>
+            <thead>
+              <tr style={{ background: "#f1f5f9" }}>
+                {["Case ID", "Case No.", "Centre", "Type", "Direction", "Priority", "Status", "Next Hearing", "Action"].map(function(h) { return <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontSize: 10, textTransform: "uppercase" }}>{h}</th>; })}
+              </tr>
+            </thead>
+            <tbody>
+              {areaCases.map(function(c) {
+                return (
+                  <tr key={c.id} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                    <td style={{ padding: "8px 10px", fontFamily: "monospace", fontSize: 11 }}>{c.caseId}</td>
+                    <td style={{ padding: "8px 10px" }}>{c.caseNumber}</td>
+                    <td style={{ padding: "8px 10px" }}>{c.centreName}</td>
+                    <td style={{ padding: "8px 10px" }}><Pill color={c.caseType === "Civil" ? "blue" : c.caseType === "Criminal" ? "red" : c.caseType === "Revenue" ? "amber" : c.caseType === "Writ Petition" ? "purple" : c.caseType === "Consumer" ? "green" : "grey"}>{c.caseType}</Pill></td>
+                    <td style={{ padding: "8px 10px" }}><Pill color={c.direction === "Filed Against Us" ? "red" : "blue"}>{c.direction === "Filed Against Us" ? "Against" : "By Us"}</Pill></td>
+                    <td style={{ padding: "8px 10px" }}><Pill color={c.priority === "Critical" ? "red" : c.priority === "High" ? "amber" : "green"}>{c.priority}</Pill></td>
+                    <td style={{ padding: "8px 10px" }}><Pill color={c.status === "Active" ? "green" : c.status === "Adjourned" ? "amber" : c.status === "Disposed" ? "grey" : c.status === "New" ? "blue" : "red"}>{c.status}</Pill></td>
+                    <td style={{ padding: "8px 10px", fontSize: 12 }}>{c.nextHearingDate || "—"}</td>
+                    <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                      <button onClick={function() { onDrill("centre", c.centreId, c.id); }} style={{ padding: "3px 8px", borderRadius: 6, border: "1px solid #9b1c1c", background: "white", color: "#9b1c1c", fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{"Details →"}</button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {areaCases.length === 0 && <tr><td colSpan={9} style={{ padding: 20, textAlign: "center", color: "#94a3b8" }}>No cases found for this selection.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </SectionCard>
+    </div>
+  );
+}
+
+// ─── CENTRE VIEW ─────────────────────────────────────────────────
+function CentreView({ cases, initialCentreId, initialCaseId }) {
+  var _ci = useState(initialCentreId || CENTRES[0].id); var centreId = _ci[0], setCentreId = _ci[1];
+  var _sc = useState(initialCaseId || null); var selectedCaseId = _sc[0], setSelectedCaseId = _sc[1];
+  var _ef = useState(false); var showEntryForm = _ef[0], setShowEntryForm = _ef[1];
+  var _ncf = useState(false); var showNewCaseForm = _ncf[0], setShowNewCaseForm = _ncf[1];
+  var _du = useState(false); var showDocUpload = _du[0], setShowDocUpload = _du[1];
+  var _bi = useState(false); var showBulkImport = _bi[0], setShowBulkImport = _bi[1];
+  var centre = CENTRES.find(function(c) { return c.id === Number(centreId); });
+  var area = centre ? AREAS.find(function(a) { return a.id === centre.areaId; }) : null;
+  var centreCases = cases.filter(function(c) { return c.centreId === Number(centreId); });
+  var activeCase = selectedCaseId ? centreCases.find(function(c) { return c.id === selectedCaseId; }) : null;
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+        <h3 style={{ margin: 0, fontSize: 16, color: "#1f2937" }}>{"Centre View — "}{centre && centre.name} <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 400 }}>({area && area.name})</span></h3>
+        <Select value={centreId} onChange={function(v) { setCentreId(Number(v)); setSelectedCaseId(null); }} label="Centre:" options={CENTRES.map(function(c) { return { value: String(c.id), label: c.name + " (" + c.type + ")" }; })} />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+        <KpiCard label="Total Cases" value={centreCases.length} />
+        <KpiCard label="Active" value={centreCases.filter(function(c) { return c.status !== "Disposed"; }).length} accent="#16a34a" />
+        <KpiCard label="Critical" value={centreCases.filter(function(c) { return c.priority === "Critical"; }).length} accent="#ef4444" />
+        <KpiCard label="Docs Pending" value={centreCases.reduce(function(s, c) { return s + (c.checklistTotal - c.checklistDone); }, 0)} accent="#f59e0b" />
+      </div>
+
+      {/* Action Buttons */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        <button onClick={function() { setShowNewCaseForm(!showNewCaseForm); if (!showNewCaseForm) setShowBulkImport(false); setSelectedCaseId(null); }} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: showNewCaseForm ? "#e2e8f0" : "linear-gradient(135deg, #9b1c1c, #7a1515)", color: showNewCaseForm ? "#475569" : "white", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+          {showNewCaseForm ? "Cancel" : "+ Register New Case"}
+        </button>
+        <button onClick={function() { setShowBulkImport(!showBulkImport); if (!showBulkImport) setShowNewCaseForm(false); }} style={{ padding: "8px 16px", borderRadius: 8, border: showBulkImport ? "1px solid #e2e8f0" : "1px solid #3b82f6", background: showBulkImport ? "#e2e8f0" : "white", color: showBulkImport ? "#475569" : "#1e40af", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+          {showBulkImport ? "Cancel" : "Import from Excel"}
+        </button>
+      </div>
+
+      {showBulkImport && <BulkImportPanel onClose={function() { setShowBulkImport(false); }} />}
+
+      {/* Register New Case Form (Centre-level) */}
+      {showNewCaseForm && (
+        <SectionCard style={{ borderLeft: "4px solid #9b1c1c" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <h4 style={{ margin: 0, fontSize: 16, color: "#9b1c1c" }}>Register New Case</h4>
+            <button onClick={function() { setShowNewCaseForm(false); }} style={{ padding: "4px 12px", borderRadius: 6, border: "1px solid #e2e8f0", background: "white", color: "#64748b", fontSize: 12, cursor: "pointer" }}>{"Cancel ✕"}</button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+            <div><label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Case Number *</label><input type="text" placeholder="e.g., CS-1234/2026" style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} /></div>
+            <div><label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Case Type *</label><select style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }}><option value="">Select type...</option>{CASE_TYPES.map(function(t) { return <option key={t} value={t}>{t}</option>; })}</select></div>
+            <div><label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Direction *</label><select style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }}><option value="">Select...</option>{DIRECTIONS.map(function(d) { return <option key={d} value={d}>{d}</option>; })}</select></div>
+            <div><label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Court Name *</label><input type="text" placeholder="e.g., Civil Court, Ludhiana" style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} /></div>
+            <div><label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Opposing Party *</label><input type="text" placeholder="Full name of opposing party" style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} /></div>
+            <div><label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Advocate Name</label><input type="text" placeholder="Name of advocate handling the case" style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} /></div>
+            <div><label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Priority *</label><select style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }}>{PRIORITIES.map(function(p) { return <option key={p} value={p}>{p}</option>; })}</select></div>
+            <div><label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Filed Date *</label><input type="date" style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} /></div>
+            <div><label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>First Hearing Date</label><input type="date" style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} /></div>
+            <div style={{ gridColumn: "1 / -1" }}><label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Case Summary / Brief Description</label><textarea rows={2} placeholder="Brief description of the case..." style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13, fontFamily: "inherit", resize: "vertical" }} /></div>
+          </div>
+          <div style={{ marginTop: 16, padding: 14, background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+            <h5 style={{ margin: "0 0 8px", fontSize: 13, color: "#1f2937" }}>Upload Initial Documents</h5>
+            <p style={{ fontSize: 11, color: "#64748b", margin: "0 0 10px" }}>Upload relevant documents now. The full checklist will be auto-generated based on the case type selected above.</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div style={{ padding: "10px 12px", borderRadius: 6, border: "2px dashed #d1d5db", background: "white", textAlign: "center" }}>
+                <div style={{ fontSize: 20, marginBottom: 4 }}>{"📄"}</div>
+                <label style={{ fontSize: 12, color: "#9b1c1c", fontWeight: 600, cursor: "pointer" }}><input type="file" multiple style={{ display: "none" }} />Click to upload or drag files</label>
+                <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>PDF, JPG, PNG, DOCX (max 10MB each)</div>
+              </div>
+              <div style={{ fontSize: 12, color: "#64748b" }}>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>Common initial uploads:</div>
+                <div style={{ fontSize: 11, lineHeight: 1.8 }}>{"• Copy of plaint / FIR / petition"}<br/>{"• Title deed / ownership documents"}<br/>{"• Court notice / summons (if received)"}<br/>{"• Power of Attorney (Vakalatnama)"}<br/>{"• Photographs / site plan"}</div>
+              </div>
+            </div>
+          </div>
+          <div style={{ marginTop: 14, padding: 12, background: "#ede9fe", borderRadius: 8, border: "1px solid #c4b5fd" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 14 }}>{"🔍"}</span>
+              <h5 style={{ margin: 0, fontSize: 13, color: "#5b21b6" }}>Similar Cases Found</h5>
+            </div>
+            <p style={{ fontSize: 11, color: "#64748b", margin: "0 0 8px" }}>Based on the details entered, the system will show existing cases with matching opposing party, location, or court.</p>
+            <div style={{ padding: "8px 10px", background: "white", borderRadius: 6, fontSize: 11, color: "#475569" }}>
+              <em>{"Start filling in the case details above — matching cases will appear here automatically."}</em>
+            </div>
+          </div>
+          <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+            <button style={{ padding: "10px 24px", borderRadius: 8, border: "none", background: "linear-gradient(135deg, #9b1c1c, #7a1515)", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{"Register Case & Generate Checklist"}</button>
+            <button onClick={function() { setShowNewCaseForm(false); }} style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid #e2e8f0", background: "white", color: "#475569", fontSize: 13, cursor: "pointer" }}>Cancel</button>
+          </div>
+        </SectionCard>
+      )}
+
+      <HearingCalendar cases={centreCases} scopeLabel={centre && centre.name} onCaseClick={function(id) { setSelectedCaseId(id); }} />
+
+      {/* Case List */}
+      <SectionCard>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <h4 style={{ margin: 0, fontSize: 14 }}>Cases at {centre && centre.name}</h4>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, maxHeight: 400, overflowY: "auto" }}>
+          {centreCases.map(function(c) {
+            return (
+              <div key={c.id} onClick={function() { setSelectedCaseId(c.id); }} style={{ padding: "10px 12px", borderRadius: 8, border: selectedCaseId === c.id ? "2px solid #9b1c1c" : "1px solid #e2e8f0", background: selectedCaseId === c.id ? "#fef2f2" : "white", cursor: "pointer", transition: "all 0.15s" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 600 }}>{c.caseId}</span>
+                  <Pill color={c.priority === "Critical" ? "red" : c.priority === "High" ? "amber" : "green"}>{c.priority}</Pill>
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>{c.caseNumber}</div>
+                <div style={{ fontSize: 11, color: "#64748b" }}>{c.caseType} {"·"} {c.direction} {"·"} <Pill color={c.status === "Active" ? "green" : c.status === "Adjourned" ? "amber" : c.status === "Disposed" ? "grey" : "blue"}>{c.status}</Pill></div>
+                <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>vs {c.opposingParty} {"·"} {c.court}</div>
+                {c.nextHearingDate && <div style={{ fontSize: 11, color: "#9b1c1c", marginTop: 4, fontWeight: 600 }}>Next Hearing: {c.nextHearingDate}</div>}
+              </div>
+            );
+          })}
+          {centreCases.length === 0 && <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", gridColumn: "1 / -1" }}>No cases at this centre.</div>}
+        </div>
+      </SectionCard>
+
+      {/* Case Detail + Hearing Timeline */}
+      {activeCase && (
+        <SectionCard>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 12, color: "#64748b", fontFamily: "monospace" }}>{activeCase.caseId}</div>
+              <h4 style={{ margin: "4px 0 2px", fontSize: 16 }}>{activeCase.caseNumber} {"—"} {activeCase.caseType}</h4>
+              <div style={{ fontSize: 13, color: "#475569" }}>{activeCase.direction} {"·"} {activeCase.court}</div>
+              <div style={{ fontSize: 13, color: "#475569" }}>vs {activeCase.opposingParty} {"·"} Advocate: {activeCase.advocate}</div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <Pill color={activeCase.status === "Active" ? "green" : activeCase.status === "Adjourned" ? "amber" : activeCase.status === "Disposed" ? "grey" : "blue"}>{activeCase.status}</Pill>
+              <div style={{ marginTop: 4 }}><Pill color={activeCase.priority === "Critical" ? "red" : activeCase.priority === "High" ? "amber" : "green"}>{activeCase.priority}</Pill></div>
+              <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>Filed: {activeCase.filedDate}</div>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 16 }}>
+            <div style={{ padding: "8px 12px", background: "#f8fafc", borderRadius: 6, fontSize: 12 }}><div style={{ color: "#64748b" }}>Hearings</div><div style={{ fontWeight: 700, fontSize: 16 }}>{activeCase.hearings.length}</div></div>
+            <div style={{ padding: "8px 12px", background: "#f8fafc", borderRadius: 6, fontSize: 12 }}><div style={{ color: "#64748b" }}>Documents</div><div style={{ fontWeight: 700, fontSize: 16 }}>{activeCase.documents}</div></div>
+            <div style={{ padding: "8px 12px", background: "#f8fafc", borderRadius: 6, fontSize: 12 }}><div style={{ color: "#64748b" }}>Checklist</div><div style={{ fontWeight: 700, fontSize: 16 }}>{activeCase.checklistDone}/{activeCase.checklistTotal}</div></div>
+            <div style={{ padding: "8px 12px", background: "#f8fafc", borderRadius: 6, fontSize: 12 }}><div style={{ color: "#64748b" }}>Expenses</div><div style={{ fontWeight: 700, fontSize: 16 }}>{"₹"}{(activeCase.expenses / 1000).toFixed(0)}K</div></div>
+          </div>
+
+          <h4 style={{ margin: "0 0 12px", fontSize: 14, borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Hearing Timeline</h4>
+          <div style={{ maxHeight: 400, overflowY: "auto" }}>
+            {[].concat(activeCase.hearings).reverse().map(function(h, i) {
+              return (
+                <div key={h.id} style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 12, marginBottom: 0, padding: "10px 0", borderBottom: i < activeCase.hearings.length - 1 ? "1px solid #f1f5f9" : "none" }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#1f2937" }}>{h.date}</div>
+                    <div style={{ fontSize: 10, color: "#94a3b8" }}>#{h.id}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, color: "#475569", marginBottom: 4 }}>{h.summary}</div>
+                    {h.adjournmentReason && (
+                      <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4, flexWrap: "wrap" }}>
+                        <Pill color={h.adjournmentReason.cause === "Our side" ? "red" : h.adjournmentReason.cause === "Other party" ? "blue" : h.adjournmentReason.cause === "Court" ? "grey" : "amber"}>{h.adjournmentReason.label}</Pill>
+                        <span style={{ fontSize: 10, color: "#94a3b8" }}>Cause: {h.adjournmentReason.cause}</span>
+                      </div>
+                    )}
+                    {h.nextDate && <div style={{ fontSize: 11, color: "#9b1c1c" }}>Next date: {h.nextDate}</div>}
+                    {h.actionItems && <div style={{ fontSize: 11, color: "#64748b", fontStyle: "italic", marginTop: 2 }}>Action: {h.actionItems}</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Action Buttons */}
+          <div style={{ marginTop: 14, borderTop: "1px solid #e2e8f0", paddingTop: 14, display: "flex", gap: 8 }}>
+            <button onClick={function() { setShowEntryForm(!showEntryForm); setShowDocUpload(false); }} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: showEntryForm ? "#e2e8f0" : "linear-gradient(135deg, #9b1c1c, #7a1515)", color: showEntryForm ? "#475569" : "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              {showEntryForm ? "Cancel Hearing" : "+ Log Hearing Outcome"}
+            </button>
+            <button onClick={function() { setShowDocUpload(!showDocUpload); setShowEntryForm(false); }} style={{ padding: "8px 16px", borderRadius: 8, border: showDocUpload ? "1px solid #e2e8f0" : "1px solid #9b1c1c", background: showDocUpload ? "#e2e8f0" : "white", color: showDocUpload ? "#475569" : "#9b1c1c", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              {showDocUpload ? "Cancel Upload" : "+ Upload Document"}
+            </button>
+          </div>
+
+          {/* Hearing Entry Form */}
+          {showEntryForm && (
+            <div style={{ marginTop: 14, padding: 16, background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0" }}>
+              <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "#9b1c1c" }}>Log Hearing Outcome</h4>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div><label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Hearing Date *</label><input type="date" style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} /></div>
+                <div><label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Next Hearing Date</label><input type="date" style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} /></div>
+                <div style={{ gridColumn: "1 / -1" }}><label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Outcome Summary *</label><textarea rows={2} placeholder="What happened at the hearing..." style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13, fontFamily: "inherit", resize: "vertical" }} /></div>
+                <div><label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Adjournment Reason * <span style={{ color: "#ef4444" }}>(mandatory if next date set)</span></label><select style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }}><option value="">Select reason...</option>{ADJOURNMENT_REASONS.map(function(r) { return <option key={r.code} value={r.code}>{r.label} ({r.cause})</option>; })}</select></div>
+                <div><label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Updated Case Status</label><select style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }}>{STATUSES.map(function(s) { return <option key={s} value={s}>{s}</option>; })}</select></div>
+                <div style={{ gridColumn: "1 / -1" }}><label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Action Items Before Next Hearing</label><input type="text" placeholder="e.g., File reply, Submit evidence..." style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} /></div>
+                <div style={{ gridColumn: "1 / -1" }}><label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Upload Court Order (optional)</label><input type="file" style={{ fontSize: 12 }} /></div>
+              </div>
+              <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+                <button style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#16a34a", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Save Hearing</button>
+                <button onClick={function() { setShowEntryForm(false); }} style={{ padding: "8px 20px", borderRadius: 8, border: "1px solid #e2e8f0", background: "white", color: "#475569", fontSize: 13, cursor: "pointer" }}>Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {/* Document Upload Panel */}
+          {showDocUpload && (
+            <div style={{ marginTop: 14, padding: 16, background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0" }}>
+              <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "#9b1c1c" }}>{"Upload Document — "}{activeCase.caseNumber}</h4>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div><label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Document Type *</label>
+                  <select style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }}>
+                    <option value="">Select type...</option>
+                    <option value="plaint">Plaint / Petition / Application</option>
+                    <option value="reply">Written Statement / Reply</option>
+                    <option value="court_order">Court Order</option>
+                    <option value="title_deed">Title Deed / Sale Deed</option>
+                    <option value="revenue_record">Revenue Record (Jamabandi / Fard)</option>
+                    <option value="fir">FIR / NCR Copy</option>
+                    <option value="affidavit">Affidavit</option>
+                    <option value="vakalatnama">Power of Attorney (Vakalatnama)</option>
+                    <option value="evidence">Evidence (Photographs / Video)</option>
+                    <option value="site_plan">Site Plan / Map</option>
+                    <option value="correspondence">Correspondence / Notices</option>
+                    <option value="witness">Witness Statement</option>
+                    <option value="expense_receipt">Expense Receipt</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div><label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Link to Checklist Item (optional)</label>
+                  <select style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }}>
+                    <option value="">{"None — standalone upload"}</option>
+                    <option value="1">Copy of plaint / written statement</option>
+                    <option value="2">Title deed / sale deed</option>
+                    <option value="3">Revenue record (Jamabandi)</option>
+                    <option value="4">Power of Attorney (Vakalatnama)</option>
+                    <option value="5">Court order</option>
+                  </select>
+                </div>
+                <div><label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Related Hearing Date (optional)</label>
+                  <select style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }}>
+                    <option value="">Not linked to a hearing</option>
+                    {[].concat(activeCase.hearings).reverse().slice(0, 5).map(function(h) {
+                      return <option key={h.id} value={h.id}>{"Hearing #" + h.id + " — " + h.date}</option>;
+                    })}
+                  </select>
+                </div>
+                <div><label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Description / Notes</label><input type="text" placeholder="Brief note about this document..." style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 13 }} /></div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <div style={{ padding: "16px", borderRadius: 8, border: "2px dashed #d1d5db", background: "white", textAlign: "center" }}>
+                    <div style={{ fontSize: 24, marginBottom: 6 }}>{"📎"}</div>
+                    <label style={{ fontSize: 13, color: "#9b1c1c", fontWeight: 600, cursor: "pointer" }}>
+                      <input type="file" multiple style={{ display: "none" }} />
+                      Click to select files or drag and drop here
+                    </label>
+                    <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>{"PDF, JPG, PNG, DOCX — max 10MB per file — multiple files allowed"}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#1f2937", marginBottom: 8 }}>Uploaded Documents ({activeCase.documents})</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                  {["Plaint copy.pdf", "Title deed scan.pdf", "Site photographs.zip", "Vakalatnama.pdf", "Court notice dated 12-Mar.pdf"].slice(0, activeCase.documents > 5 ? 5 : activeCase.documents).map(function(doc, i) {
+                    return (
+                      <div key={i} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0", background: "white", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11 }}>
+                        <span>{"📄 "}{doc}</span>
+                        <span style={{ color: "#94a3b8" }}>View</span>
+                      </div>
+                    );
+                  })}
+                  {activeCase.documents > 5 && <div style={{ padding: "6px 10px", fontSize: 11, color: "#64748b" }}>+{activeCase.documents - 5} more files</div>}
+                </div>
+              </div>
+
+              <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+                <button style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#16a34a", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{"Upload & Save"}</button>
+                <button onClick={function() { setShowDocUpload(false); }} style={{ padding: "8px 20px", borderRadius: 8, border: "1px solid #e2e8f0", background: "white", color: "#475569", fontSize: 13, cursor: "pointer" }}>Cancel</button>
+              </div>
+            </div>
+          )}
+        </SectionCard>
+      )}
+
+      {/* Document Checklist */}
+      {activeCase && (
+        <SectionCard>
+          <h4 style={{ margin: "0 0 12px", fontSize: 14 }}>{"Document Checklist — "}{activeCase.caseType}</h4>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {(activeCase.caseType === "Civil" ? ["Copy of plaint / written statement", "Title deed / sale deed", "Revenue record (Jamabandi)", "Site plan / map", "Photographs of property", "Previous court orders", "Affidavit of authorized signatory", "Power of Attorney (Vakalatnama)", "Correspondence with other party"] :
+              activeCase.caseType === "Revenue" ? ["Mutation application copy", "Jamabandi / revenue records", "Sale deed / gift deed / will", "Identity proof of RSSB representative", "Previous mutation orders", "Tehsildar / SDM order", "Site inspection report", "Death certificate (if succession)"] :
+              activeCase.caseType === "Criminal" ? ["Copy of FIR / NCR", "Complaint letter (original)", "Witness statements", "Photographs / video evidence", "Medical report (if relevant)", "Police investigation report", "Bail application (if applicable)", "ID proof of representative"] :
+              activeCase.caseType === "Writ Petition" ? ["Government order being challenged", "Grounds for writ (legal brief)", "Relevant statutory provisions", "Affidavit in support", "Supporting documentary evidence", "Previous correspondence with authority", "Lower court order (if appeal)", "Memo of parties", "Court fee receipt"] :
+              ["Application copy", "Supporting documents", "Evidence", "Identity proof", "Previous orders", "Correspondence"]
+            ).map(function(doc, i) {
+              var done = i < activeCase.checklistDone;
+              return (
+                <div key={i} style={{ padding: "8px 12px", borderRadius: 6, border: "1px solid #e2e8f0", background: done ? "#f0fdf4" : "#fff", display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+                  <span style={{ width: 18, height: 18, borderRadius: 4, border: done ? "none" : "2px solid #d1d5db", background: done ? "#16a34a" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: 11, flexShrink: 0 }}>{done ? "✓" : ""}</span>
+                  <span style={{ flex: 1, color: done ? "#166534" : "#475569" }}>{doc}</span>
+                  {done
+                    ? <span style={{ fontSize: 10, color: "#16a34a", flexShrink: 0 }}>{"📄 View"}</span>
+                    : <button onClick={function() { setShowDocUpload(true); }} style={{ padding: "2px 8px", borderRadius: 4, border: "1px solid #d1d5db", background: "white", color: "#9b1c1c", fontSize: 10, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>Upload</button>
+                  }
+                </div>
+              );
+            })}
+          </div>
+        </SectionCard>
+      )}
+    </div>
+  );
+}
+
+// ─── MAIN APP ────────────────────────────────────────────────────
+function LegalCaseManagement() {
+  var _at = useState("zone"); var activeTab = _at[0], setActiveTab = _at[1];
+  var _ds = useState({}); var drillState = _ds[0], setDrillState = _ds[1];
+
+  var handleDrill = useCallback(function(view, entityId, subId) {
+    if (view === "state") {
+      setDrillState({ stateId: entityId });
+      setActiveTab("state");
+    } else if (view === "area") {
+      setDrillState({ areaId: entityId });
+      setActiveTab("area");
+    } else if (view === "centre") {
+      setDrillState({ centreId: entityId, caseId: subId });
+      setActiveTab("centre");
+    }
+  }, []);
+
+  var tabs = [
+    { id: "zone", label: "Zone View" },
+    { id: "state", label: "State View" },
+    { id: "area", label: "Area View" },
+    { id: "centre", label: "Centre View" },
+  ];
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#f8fafc", fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
+      {/* Header */}
+      <div style={{ background: "linear-gradient(135deg, #9b1c1c 0%, #7a1515 100%)", color: "white", padding: "20px 24px", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", opacity: 0.85, marginBottom: 4 }}>SRS Platform</div>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Legal Case Management</h1>
+          <div style={{ fontSize: 13, opacity: 0.88, marginTop: 2 }}>{"Prototype v1.0 — All views with mock data across zones"}</div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ background: "white", borderBottom: "1px solid #e2e8f0", position: "sticky", top: 0, zIndex: 10 }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", gap: 0 }}>
+          {tabs.map(function(t) {
+            return (
+              <button key={t.id} onClick={function() { setActiveTab(t.id); }} style={{ padding: "12px 20px", border: "none", borderBottom: activeTab === t.id ? "3px solid #9b1c1c" : "3px solid transparent", background: activeTab === t.id ? "#fef2f2" : "transparent", color: activeTab === t.id ? "#9b1c1c" : "#64748b", fontSize: 13, fontWeight: activeTab === t.id ? 700 : 500, cursor: "pointer", transition: "all 0.15s" }}>
+                {t.label}
+              </button>
+            );
+          })}
+          <div style={{ flex: 1 }} />
+          <div style={{ display: "flex", alignItems: "center", padding: "0 16px", fontSize: 12, color: "#94a3b8" }}>
+            {MOCK_CASES.length} cases {"·"} {MOCK_CASES.filter(function(c) { return c.status !== "Disposed"; }).length} active
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "20px 24px 80px" }}>
+        {activeTab === "zone" && <ZoneView cases={MOCK_CASES} onDrill={handleDrill} />}
+        {activeTab === "state" && <StateView cases={MOCK_CASES} initialStateId={drillState.stateId} onDrill={handleDrill} />}
+        {activeTab === "area" && <AreaView cases={MOCK_CASES} initialAreaId={drillState.areaId} onDrill={handleDrill} />}
+        {activeTab === "centre" && <CentreView cases={MOCK_CASES} initialCentreId={drillState.centreId} initialCaseId={drillState.caseId} />}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<LegalCaseManagement />);
+</script>
+</body>
+</html>
